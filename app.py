@@ -1949,13 +1949,13 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
     st.divider()
     st.markdown("### Manutencao")
-    with st.expander("Incluir nova conta a pagar", expanded=False):
+    with st.expander("➕ Incluir nova conta a pagar", expanded=False):
         formulario_inclusao(df, empresa, usuario)
 
-    with st.expander("Importar contas em massa por CSV", expanded=False):
+    with st.expander("📥 Importar contas em massa por CSV", expanded=False):
         importacao_massa_contas(df, empresa, usuario)
 
-    with st.expander("Excluir conta a pagar", expanded=False):
+    with st.expander("🗑️ Excluir conta a pagar", expanded=False):
         area_exclusao(df, contas, empresa, usuario)
 
 def main() -> None:
