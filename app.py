@@ -1019,11 +1019,13 @@ def campo_opcao_nova(
     label_novo: str,
     key_prefix: str,
     index: int | None = None,
+    permitir_vazio: bool = False,
 ) -> tuple[str, str]:
-    indice = indice_padrao_sem_novo(opcoes) if index is None else index
+    opcoes_select = ["", *opcoes] if permitir_vazio and "" not in opcoes else opcoes
+    indice = 0 if permitir_vazio and index is None else indice_padrao_sem_novo(opcoes_select) if index is None else index
     selecao = container.selectbox(
         label,
-        opcoes,
+        opcoes_select,
         index=indice,
         key=f"{key_prefix}_selecao",
         format_func=rotulo_opcao_nova,
@@ -1901,6 +1903,7 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         opcoes_descricao,
         "Digite a nova descricao",
         "inclusao_descricao",
+        permitir_vazio=True,
     )
     fornecedor_sel, fornecedor_novo = campo_opcao_nova(
         c2,
@@ -1908,6 +1911,7 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         opcoes_fornecedor,
         "Digite o novo fornecedor",
         "inclusao_fornecedor",
+        permitir_vazio=True,
     )
     tipo_conta_sel, tipo_conta_novo = campo_opcao_nova(
         st,
@@ -1915,13 +1919,14 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         opcoes_tipo,
         "Digite o novo tipo de conta",
         "inclusao_tipo_conta",
+        permitir_vazio=True,
     )
 
     with st.form("form_conta_a_pagar", clear_on_submit=True):
         c3, c4, c5 = st.columns([1, 1, 1])
-        vencimento = c3.date_input("Vencimento", format="DD/MM/YYYY")
+        vencimento = c3.date_input("Vencimento", value=None, format="DD/MM/YYYY")
         valor_texto = c4.text_input("Valor", placeholder="Ex.: 1.000,00")
-        status = c5.selectbox("Status", ["aberto", "pendente", "vencido"])
+        status = c5.selectbox("Status", ["", "aberto", "pendente", "vencido"], index=0)
 
         observacao = st.text_area("Descricao / observacao livre", height=88)
         c6, c7 = st.columns([1, 1])
@@ -1944,8 +1949,8 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     _, tipo_nome = obter_tipo_conta(tipo_conta)
     valor = parse_valor_br(valor_texto)
 
-    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor is None or valor <= 0:
-        st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero. Use ponto para milhar e virgula para centavos.")
+    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or vencimento is None or not status or valor is None or valor <= 0:
+        st.error("Preencha descricao, fornecedor, tipo de conta, vencimento, status e valor maior que zero. Use ponto para milhar e virgula para centavos.")
         return
     documento_final = f"AP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     dados_formulario = {
