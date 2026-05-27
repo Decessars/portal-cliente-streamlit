@@ -75,6 +75,28 @@ COLUNAS_EXTRAS = [
 
 COLUNAS_DADOS = COLUNAS_BASE + COLUNAS_EXTRAS
 
+COLUNAS_TEXTO = [
+    "empresa",
+    "competencia",
+    "tipo",
+    "descricao",
+    "fornecedor_cliente",
+    "vencimento",
+    "pagamento_recebimento",
+    "status",
+    "categoria",
+    "observacao",
+    "documento",
+    "tipo_conta_codigo",
+    "tipo_conta_nome",
+    "anexo_nome",
+    "anexo_caminho",
+    "criado_em",
+    "criado_por",
+    "excluido_em",
+    "excluido_por",
+]
+
 COLUNAS_IMPORTACAO = [
     "descricao",
     "fornecedor",
@@ -600,6 +622,8 @@ def normalizar_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df[COLUNAS_DADOS].copy()
     df["valor"] = pd.to_numeric(df["valor"], errors="coerce").fillna(0)
+    for coluna in COLUNAS_TEXTO:
+        df[coluna] = df[coluna].fillna("").astype(str)
     df["ativo"] = df["ativo"].apply(normalizar_ativo)
     df["vencimento_dt"] = pd.to_datetime(df["vencimento"], errors="coerce")
     df["pagamento_recebimento_dt"] = pd.to_datetime(df["pagamento_recebimento"], errors="coerce")
@@ -663,7 +687,8 @@ def salvar_dados_empresa(df: pd.DataFrame, empresa: str) -> Path:
     """Salva no arquivo operacional da empresa selecionada."""
     caminho = caminho_dados_empresa(empresa)
     caminho.parent.mkdir(parents=True, exist_ok=True)
-    dados = df[[coluna for coluna in COLUNAS_DADOS if coluna in df.columns]].copy()
+    dados = normalizar_dataframe(df)
+    dados = dados[[coluna for coluna in COLUNAS_DADOS if coluna in dados.columns]].copy()
     dados.to_csv(caminho, index=False, encoding="utf-8-sig")
     return caminho
 
