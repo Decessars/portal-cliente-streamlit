@@ -756,6 +756,20 @@ def resolver_opcao_digitavel(selecao: str, texto_novo: str) -> str:
     return str(selecao or "").strip()
 
 
+def opcoes_com_novo(opcoes: list[str]) -> list[str]:
+    limpas = [opcao for opcao in opcoes if str(opcao or "").strip() != OPCAO_NOVO]
+    if limpas and str(limpas[0] or "").strip() == "":
+        return [limpas[0], OPCAO_NOVO, *limpas[1:]]
+    return [OPCAO_NOVO, *limpas]
+
+
+def indice_padrao_sem_novo(opcoes: list[str]) -> int:
+    for indice, opcao in enumerate(opcoes):
+        if str(opcao or "").strip() and opcao != OPCAO_NOVO:
+            return indice
+    return 0
+
+
 def gerar_modelo_importacao_csv() -> bytes:
     exemplo = pd.DataFrame(
         [
@@ -1471,23 +1485,23 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### + Incluir conta a pagar")
     st.caption("A inclusao fica registrada com data, hora e usuario logado.")
 
-    opcoes_tipo = opcoes_tipo_conta_com_historico(df) + [OPCAO_NOVO]
-    opcoes_descricao = opcoes_com_historico(df, "descricao", SUGESTOES_DESCRICAO) + [OPCAO_NOVO]
-    opcoes_fornecedor = opcoes_com_historico(df, "fornecedor_cliente", SUGESTOES_FORNECEDOR) + [OPCAO_NOVO]
+    opcoes_tipo = opcoes_com_novo(opcoes_tipo_conta_com_historico(df))
+    opcoes_descricao = opcoes_com_novo(opcoes_com_historico(df, "descricao", SUGESTOES_DESCRICAO))
+    opcoes_fornecedor = opcoes_com_novo(opcoes_com_historico(df, "fornecedor_cliente", SUGESTOES_FORNECEDOR))
     with st.form("form_conta_a_pagar", clear_on_submit=True):
         c1, c2 = st.columns(2)
         descricao_sel = c1.selectbox("Descricao", opcoes_descricao, index=0)
         fornecedor_sel = c2.selectbox("Fornecedor", opcoes_fornecedor, index=0)
-        descricao_nova = c1.text_input("Nova descricao") if descricao_sel == OPCAO_NOVO else ""
-        fornecedor_novo = c2.text_input("Novo fornecedor") if fornecedor_sel == OPCAO_NOVO else ""
+        descricao_nova = c1.text_input("Digite a nova descricao") if descricao_sel == OPCAO_NOVO else ""
+        fornecedor_novo = c2.text_input("Digite o novo fornecedor") if fornecedor_sel == OPCAO_NOVO else ""
 
         c3, c4, c5 = st.columns([1, 1, 1])
         vencimento = c3.date_input("Vencimento")
         valor = c4.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
         status = c5.selectbox("Status", ["aberto", "pendente", "vencido"])
 
-        tipo_conta_sel = st.selectbox("Tipo de conta", opcoes_tipo)
-        tipo_conta_novo = st.text_input("Novo tipo de conta") if tipo_conta_sel == OPCAO_NOVO else ""
+        tipo_conta_sel = st.selectbox("Tipo de conta", opcoes_tipo, index=indice_padrao_sem_novo(opcoes_tipo))
+        tipo_conta_novo = st.text_input("Digite o novo tipo de conta") if tipo_conta_sel == OPCAO_NOVO else ""
         observacao = st.text_area("Descricao / observacao livre", height=88)
         c6, c7 = st.columns([1, 1])
         anexo = c6.file_uploader("Anexo", type=["pdf", "png", "jpg", "jpeg", "xml", "csv", "xlsx"])
@@ -1587,12 +1601,12 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
     if pd.isna(vencimento_atual):
         vencimento_atual = pd.Timestamp(datetime.now().date())
 
-    opcoes_tipo = opcoes_tipo_conta_com_historico(df) + [OPCAO_NOVO]
+    opcoes_tipo = opcoes_com_novo(opcoes_tipo_conta_com_historico(df))
     tipo_codigo_atual = str(linha.get("tipo_conta_codigo", "") or "").strip()
     tipo_nome_atual = str(linha.get("tipo_conta_nome", "") or "").strip()
     tipo_rotulo = f"{tipo_codigo_atual} - {tipo_nome_atual}" if tipo_codigo_atual and tipo_nome_atual else tipo_nome_atual
     if not tipo_rotulo:
-        tipo_rotulo = opcoes_tipo[0]
+        tipo_rotulo = opcoes_tipo[indice_padrao_sem_novo(opcoes_tipo)]
     if tipo_rotulo not in opcoes_tipo:
         opcoes_tipo.insert(0, tipo_rotulo)
     tipo_idx = opcoes_tipo.index(tipo_rotulo)
@@ -1616,7 +1630,7 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
         status = c5.selectbox("Status", status_opcoes, index=status_opcoes.index(status_atual) if status_atual in status_opcoes else 0)
 
         tipo_conta_sel = st.selectbox("Tipo de conta", opcoes_tipo, index=tipo_idx)
-        tipo_conta_novo = st.text_input("Novo tipo de conta") if tipo_conta_sel == OPCAO_NOVO else ""
+        tipo_conta_novo = st.text_input("Digite o novo tipo de conta") if tipo_conta_sel == OPCAO_NOVO else ""
         observacao = st.text_area(
             "Descricao / observacao livre",
             value=str(linha.get("observacao", "") or "").strip(),
