@@ -89,6 +89,14 @@ COLUNAS_IMPORTACAO = [
 
 COLUNAS_IMPORTACAO_OBRIGATORIAS = ["descricao", "fornecedor", "vencimento", "valor"]
 
+DOCUMENTOS_DEMO_LEGADOS = {
+    "AP-MHL-001",
+    "AP-MHL-002",
+    "AP-MHL-003",
+    "AP-MHB-001",
+    "AP-MHB-002",
+}
+
 MODULOS_CONTABEIS = [
     {"id": "contas_a_pagar", "titulo": "Contas a Pagar", "ativo": True},
     {"id": "contas_a_receber", "titulo": "Contas a Receber", "ativo": False},
@@ -596,7 +604,20 @@ def carregar_dados_empresa(empresa: str) -> pd.DataFrame:
         demo = carregar_base_demo()
         df = demo.loc[demo["empresa"].astype(str) == empresa].copy()
         salvar_dados_empresa(normalizar_dataframe(df), empresa)
-    return normalizar_dataframe(df)
+    df_normalizado = normalizar_dataframe(df)
+    df_limpo = remover_lancamentos_demo_legados(df_normalizado)
+    if len(df_limpo) != len(df_normalizado):
+        salvar_dados_empresa(df_limpo, empresa)
+    return df_limpo
+
+
+def remover_lancamentos_demo_legados(df: pd.DataFrame) -> pd.DataFrame:
+    documentos = df["documento"].astype(str).str.strip()
+    criado_em = df["criado_em"].fillna("").astype(str).str.strip()
+    mascara_demo = documentos.isin(DOCUMENTOS_DEMO_LEGADOS) & criado_em.eq("")
+    if not mascara_demo.any():
+        return df
+    return df.loc[~mascara_demo].copy()
 
 
 def carregar_dados_empresas(config: dict) -> pd.DataFrame:
@@ -1172,6 +1193,39 @@ def excluir_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str) -> pd.Dat
     return df_atualizado
 
 
+def editar_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str, dados_formulario: dict) -> pd.DataFrame:
+    df_atualizado = df.copy()
+    if indice not in df_atualizado.index:
+        raise ValueError("Conta selecionada não foi encontrada na base atual.")
+
+    posicao = df_atualizado.index.get_loc(indice)
+    if isinstance(posicao, slice):
+        posicao = posicao.start
+    elif not isinstance(posicao, int):
+        posicoes = list(posicao)
+        if not posicoes:
+            raise ValueError("Conta selecionada não foi encontrada na base atual.")
+        posicao = posicoes[0]
+
+    tipo_codigo, tipo_nome = obter_tipo_conta(dados_formulario["tipo_conta"])
+    atualizacoes = {
+        "descricao": dados_formulario["descricao"],
+        "fornecedor_cliente": dados_formulario["fornecedor"],
+        "vencimento": dados_formulario["vencimento"].strftime("%Y-%m-%d"),
+        "valor": float(dados_formulario["valor"]),
+        "status": dados_formulario["status"],
+        "categoria": dados_formulario["categoria"],
+        "observacao": dados_formulario["observacao"],
+        "documento": dados_formulario["documento"],
+        "tipo_conta_codigo": tipo_codigo,
+        "tipo_conta_nome": tipo_nome,
+        "criado_por": str(df_atualizado.iat[posicao, df_atualizado.columns.get_loc("criado_por")] or usuario),
+    }
+    for coluna, valor in atualizacoes.items():
+        df_atualizado.iat[posicao, df_atualizado.columns.get_loc(coluna)] = valor
+    return df_atualizado
+
+
 def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### ➕ Incluir conta a pagar")
     st.caption("A inclusão fica registrada com data, hora e usuário logado.")
@@ -1272,6 +1326,82 @@ def importacao_massa_contas(df: pd.DataFrame, empresa: str, usuario: str) -> Non
     st.rerun()
 
 
+def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: str) -> None:
+    st.markdown("### Editar conta a pagar")
+    st.caption("Selecione uma conta ativa, altere os campos e salve.")
+
+    if contas.empty:
+        st.info("Nenhuma conta em aberto para editar.")
+        return
+
+    opcoes = {}
+    for indice, linha in contas.iterrows():
+        rotulo = (
+            f"{linha.get('documento', '')} | {formatar_data_br(linha.get('vencimento'))} | "
+            f"{linha.get('fornecedor_cliente', '')} | {formatar_moeda_br(linha.get('valor', 0))}"
+        )
+        opcoes[rotulo] = indice
+
+    selecionada = st.selectbox("Conta a editar", list(opcoes.keys()), key="editar_conta_select")
+    indice = opcoes[selecionada]
+    linha = df.loc[indice]
+    vencimento_atual = pd.to_datetime(linha.get("vencimento"), errors="coerce")
+    if pd.isna(vencimento_atual):
+        vencimento_atual = pd.Timestamp(datetime.now().date())
+
+    opcoes_tipo = [f"{codigo} - {nome}" for codigo, nome in TIPOS_CONTA_PAGAR.items()]
+    tipo_atual = str(linha.get("tipo_conta_codigo", "")).strip()
+    tipo_rotulo = next((opcao for opcao in opcoes_tipo if opcao.startswith(f"{tipo_atual} - ")), opcoes_tipo[0])
+    tipo_idx = opcoes_tipo.index(tipo_rotulo)
+
+    with st.form("form_editar_conta"):
+        c1, c2 = st.columns(2)
+        descricao = c1.text_input("Descrição", value=str(linha.get("descricao", "")))
+        fornecedor = c2.text_input("Fornecedor", value=str(linha.get("fornecedor_cliente", "")))
+
+        c3, c4, c5 = st.columns([1, 1, 1])
+        vencimento = c3.date_input("Vencimento", value=vencimento_atual.date())
+        valor = c4.number_input("Valor", min_value=0.0, step=10.0, format="%.2f", value=float(linha.get("valor", 0) or 0))
+        status_opcoes = ["aberto", "pendente", "vencido"]
+        status_atual = str(linha.get("status", "aberto")).lower()
+        status = c5.selectbox("Status", status_opcoes, index=status_opcoes.index(status_atual) if status_atual in status_opcoes else 0)
+
+        tipo_conta = st.selectbox("Tipo de conta", opcoes_tipo, index=tipo_idx)
+        c6, c7 = st.columns(2)
+        categoria = c6.text_input("Categoria", value=str(linha.get("categoria", "")))
+        documento = c7.text_input("Documento / referência", value=str(linha.get("documento", "")))
+        observacao = st.text_area("Observação", value=str(linha.get("observacao", "")), height=80)
+        salvar = st.form_submit_button("Salvar alterações", use_container_width=True)
+
+    if not salvar:
+        return
+
+    if not descricao.strip() or not fornecedor.strip() or valor <= 0:
+        st.error("Preencha descrição, fornecedor e valor maior que zero.")
+        return
+
+    dados_formulario = {
+        "descricao": descricao.strip(),
+        "fornecedor": fornecedor.strip(),
+        "vencimento": vencimento,
+        "valor": valor,
+        "status": status,
+        "tipo_conta": tipo_conta,
+        "categoria": categoria.strip(),
+        "documento": documento.strip() or f"AP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+        "observacao": observacao.strip(),
+    }
+    try:
+        df_atualizado = editar_conta_a_pagar(df, indice, usuario, dados_formulario)
+    except ValueError as erro:
+        st.error(str(erro))
+        return
+
+    salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
+    st.success("Conta a pagar atualizada com sucesso.")
+    st.rerun()
+
+
 def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### 🗑️ Excluir conta a pagar")
     st.caption("A exclusão mantém auditoria no arquivo, marcando o registro como inativo.")
@@ -1331,6 +1461,9 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
     with st.expander("Importar contas em massa por CSV", expanded=False):
         importacao_massa_contas(df, empresa, usuario)
+
+    with st.expander("Editar conta a pagar", expanded=False):
+        area_edicao(df, contas, empresa, usuario)
 
     st.divider()
     st.markdown("### 📋 Contas em aberto")
