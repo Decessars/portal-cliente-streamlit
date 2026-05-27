@@ -1370,16 +1370,79 @@ def exibir_contas(df: pd.DataFrame) -> None:
     )
 
 
+ORDENACOES_CONTAS = {
+    "vencimento": {"label": "Vencimento", "coluna": "vencimento_dt", "tipo": "data"},
+    "descricao": {"label": "Descricao", "coluna": "descricao", "tipo": "texto"},
+    "fornecedor": {"label": "Fornecedor", "coluna": "fornecedor_cliente", "tipo": "texto"},
+    "valor": {"label": "Valor", "coluna": "valor", "tipo": "numero"},
+    "status": {"label": "Status", "coluna": "status", "tipo": "texto"},
+    "documento": {"label": "Documento", "coluna": "documento", "tipo": "texto"},
+}
+
+
+def selecionar_ordenacao_contas(campo: str) -> None:
+    atual = st.session_state.get("contas_ordem_campo", "")
+    crescente = st.session_state.get("contas_ordem_crescente", True)
+    st.session_state.contas_ordem_campo = campo
+    st.session_state.contas_ordem_crescente = not crescente if atual == campo else True
+
+
+def rotulo_ordenacao(campo: str) -> str:
+    info = ORDENACOES_CONTAS[campo]
+    if st.session_state.get("contas_ordem_campo") != campo:
+        return f"{info['label']} ↕"
+    return f"{info['label']} {'↑' if st.session_state.get('contas_ordem_crescente', True) else '↓'}"
+
+
+def ordenar_contas_exibidas(contas: pd.DataFrame) -> pd.DataFrame:
+    campo = st.session_state.get("contas_ordem_campo", "")
+    if campo not in ORDENACOES_CONTAS:
+        dados = contas.copy()
+        dados["_ordem_recente"] = pd.to_datetime(dados.get("criado_em", ""), errors="coerce")
+        dados["_ordem_documento"] = dados.get("documento", "").astype(str)
+        return dados.sort_values(
+            ["_ordem_recente", "_ordem_documento"],
+            ascending=[False, False],
+            na_position="last",
+        ).drop(columns=["_ordem_recente", "_ordem_documento"], errors="ignore")
+
+    info = ORDENACOES_CONTAS[campo]
+    coluna = str(info["coluna"])
+    crescente = bool(st.session_state.get("contas_ordem_crescente", True))
+    dados = contas.copy()
+
+    if info["tipo"] == "data":
+        dados["_ordem"] = pd.to_datetime(dados.get(coluna, ""), errors="coerce")
+    elif info["tipo"] == "numero":
+        dados["_ordem"] = pd.to_numeric(dados.get(coluna, 0), errors="coerce").fillna(0)
+    else:
+        dados["_ordem"] = (
+            dados.get(coluna, "")
+            .fillna("")
+            .astype(str)
+            .map(lambda texto: unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii").casefold())
+        )
+
+    return dados.sort_values("_ordem", ascending=crescente, na_position="last").drop(columns=["_ordem"], errors="ignore")
+
+
 def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame, empresa: str, usuario: str) -> None:
     if contas_exibidas.empty:
         st.info("Nenhum registro encontrado para este filtro.")
         return
 
-    contas = contas_exibidas.sort_values(["vencimento_dt", "descricao"], na_position="last").copy()
+    contas = ordenar_contas_exibidas(contas_exibidas)
     larguras = [1.35, 2.4, 2.25, 1.25, 1, 1.35, 1.45]
     cabecalho = st.columns(larguras)
-    for col, label in zip(cabecalho, ["Vencimento", "Descrição", "Fornecedor", "Valor", "Status", "Documento", "Ações"]):
-        col.caption(label)
+    for col, campo in zip(cabecalho[:6], ORDENACOES_CONTAS.keys()):
+        col.button(
+            rotulo_ordenacao(campo),
+            key=f"ordenar_contas_{campo}",
+            on_click=selecionar_ordenacao_contas,
+            args=(campo,),
+            use_container_width=True,
+        )
+    cabecalho[6].caption("Ações")
 
     for indice, linha in contas.iterrows():
         vencida = conta_vencida(linha)
