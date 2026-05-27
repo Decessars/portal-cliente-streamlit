@@ -1654,7 +1654,7 @@ def exibir_contas_com_acoes(
     contas = ordenar_contas_exibidas(contas_exibidas)
     larguras = [1.35, 2.4, 2.25, 1.25, 1, 1.35]
     if pode_alterar:
-        larguras.append(1.45)
+        larguras.append(1.9)
     cabecalho = st.columns(larguras)
     for col, campo in zip(cabecalho[:6], ORDENACOES_CONTAS.keys()):
         col.button(
@@ -1679,18 +1679,21 @@ def exibir_contas_com_acoes(
         escrever_celula_conta(cols[5], str(linha.get("documento", "")), nivel)
         if not pode_alterar:
             continue
-        acao_cols = cols[6].columns(3)
+        acao_cols = cols[6].columns(4)
         if acao_cols[0].button("✏️", key=f"editar_{indice}", help="Editar conta"):
             selecionar_conta_para_edicao(indice)
             st.rerun()
-        if acao_cols[1].button("✅", key=f"pagar_{indice}", help="Marcar como pago"):
+        if acao_cols[1].button("📄", key=f"duplicar_{indice}", help="Duplicar conta"):
+            selecionar_conta_para_duplicacao(indice)
+            st.rerun()
+        if acao_cols[2].button("✅", key=f"pagar_{indice}", help="Marcar como pago"):
             try:
                 df_atualizado = marcar_conta_como_paga(df_base, indice, usuario)
                 salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
                 sucesso_temporario("Salvo com sucesso.")
             except ValueError as erro:
                 st.error(str(erro))
-        if acao_cols[2].button("🗑️", key=f"excluir_{indice}", help="Excluir conta"):
+        if acao_cols[3].button("🗑️", key=f"excluir_{indice}", help="Excluir conta"):
             try:
                 df_atualizado = excluir_conta_a_pagar(df_base, indice, usuario)
                 salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
@@ -1798,6 +1801,41 @@ def adicionar_conta_a_pagar(
     return pd.concat([df, pd.DataFrame([nova_linha])], ignore_index=True)
 
 
+def duplicar_conta_a_pagar(
+    df: pd.DataFrame,
+    indice: int,
+    usuario: str,
+    novo_vencimento: object,
+    novo_valor: float,
+) -> pd.DataFrame:
+    if indice not in df.index:
+        raise ValueError("Conta selecionada nao foi encontrada na base atual.")
+
+    linha = df.loc[indice]
+    vencimento_original = pd.to_datetime(linha.get("vencimento"), errors="coerce")
+    vencimento_novo = pd.to_datetime(novo_vencimento, errors="coerce")
+    if pd.isna(vencimento_original) or pd.isna(vencimento_novo):
+        raise ValueError("Informe uma nova data de vencimento valida.")
+    if vencimento_novo.date() == vencimento_original.date():
+        raise ValueError("Altere a data de vencimento para salvar a duplicacao.")
+    if novo_valor is None or float(novo_valor) <= 0:
+        raise ValueError("Informe um valor maior que zero.")
+
+    nova_linha = linha.copy()
+    nova_linha["vencimento"] = vencimento_novo.strftime("%Y-%m-%d")
+    nova_linha["pagamento_recebimento"] = ""
+    nova_linha["valor"] = float(novo_valor)
+    nova_linha["status"] = "pendente"
+    nova_linha["documento"] = f"AP-{linha.get('empresa', '')}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    nova_linha["criado_em"] = agora_br()
+    nova_linha["criado_por"] = usuario
+    nova_linha["excluido_em"] = ""
+    nova_linha["excluido_por"] = ""
+    nova_linha["ativo"] = True
+    nova_linha["tipo"] = "conta_a_pagar"
+    return pd.concat([df, pd.DataFrame([nova_linha])], ignore_index=True)
+
+
 def excluir_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str) -> pd.DataFrame:
     df_atualizado = df.copy()
     if indice not in df_atualizado.index:
@@ -1889,6 +1927,10 @@ def editar_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str, dados_form
 
 def selecionar_conta_para_edicao(indice: int) -> None:
     st.session_state.conta_edicao_indice = indice
+
+
+def selecionar_conta_para_duplicacao(indice: int) -> None:
+    st.session_state.conta_duplicacao_indice = indice
 
 
 def selecionar_manutencao(secao: str) -> None:
@@ -2131,14 +2173,83 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
     sucesso_temporario("Salvo com sucesso.")
 
 
+def formulario_duplicacao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str, key_prefix: str) -> None:
+    if indice not in df.index:
+        st.error("Conta selecionada nao foi encontrada.")
+        if st.button("Fechar", key=f"{key_prefix}_fechar_indice_invalido"):
+            st.session_state.pop("conta_duplicacao_indice", None)
+            st.rerun()
+        return
+
+    linha = df.loc[indice]
+    vencimento_original = pd.to_datetime(linha.get("vencimento"), errors="coerce")
+    if pd.isna(vencimento_original):
+        vencimento_original = pd.Timestamp(datetime.now().date())
+
+    st.caption(
+        f"Origem: {formatar_data_br(linha.get('vencimento'))} | "
+        f"{linha.get('fornecedor_cliente', '')} | "
+        f"{formatar_moeda_br(float(linha.get('valor', 0) or 0))}"
+    )
+
+    with st.form(f"{key_prefix}_form_duplicar_conta"):
+        c1, c2 = st.columns(2)
+        c1.text_input("Descricao", value=str(linha.get("descricao", "")), disabled=True)
+        c2.text_input("Fornecedor", value=str(linha.get("fornecedor_cliente", "")), disabled=True)
+
+        c3, c4, c5 = st.columns([1, 1, 1])
+        vencimento = c3.date_input("Novo vencimento", value=vencimento_original.date(), format="DD/MM/YYYY")
+        valor_texto = c4.text_input(
+            "Valor",
+            value=formatar_moeda_br(float(linha.get("valor", 0) or 0)).replace("R$ ", ""),
+            placeholder="Ex.: 1.000,00",
+        )
+        c5.text_input("Status da nova conta", value="pendente", disabled=True)
+
+        st.text_area(
+            "Descricao / observacao livre",
+            value=str(linha.get("observacao", "") or "").strip(),
+            height=88,
+            disabled=True,
+        )
+        b1, b2 = st.columns(2)
+        salvar = b1.form_submit_button("Salvar nova pendencia", use_container_width=True)
+        cancelar = b2.form_submit_button("Cancelar", use_container_width=True)
+
+    if cancelar:
+        st.session_state.pop("conta_duplicacao_indice", None)
+        st.rerun()
+    if not salvar:
+        return
+
+    valor = parse_valor_br(valor_texto)
+    try:
+        df_atualizado = duplicar_conta_a_pagar(df, indice, usuario, vencimento, valor)
+    except ValueError as erro:
+        st.error(str(erro))
+        return
+
+    salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
+    st.session_state.pop("conta_duplicacao_indice", None)
+    sucesso_temporario("Nova pendencia salva com sucesso.")
+
+
 if hasattr(st, "dialog"):
     @st.dialog("Editar conta a pagar")
     def janela_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
         formulario_edicao_conta(df, indice, empresa, usuario, "janela_edicao")
+
+    @st.dialog("Duplicar conta a pagar")
+    def janela_duplicacao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
+        formulario_duplicacao_conta(df, indice, empresa, usuario, "janela_duplicacao")
 else:
     def janela_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
         st.warning("Atualize o Streamlit para abrir edicao em janela. Usando edicao na pagina.")
         formulario_edicao_conta(df, indice, empresa, usuario, "janela_edicao")
+
+    def janela_duplicacao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
+        st.warning("Atualize o Streamlit para abrir duplicacao em janela. Usando duplicacao na pagina.")
+        formulario_duplicacao_conta(df, indice, empresa, usuario, "janela_duplicacao")
 
 
 def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: str) -> None:
@@ -2248,10 +2359,15 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str, config: 
     if indice_edicao is not None and pode_alterar:
         janela_edicao_conta(df, indice_edicao, empresa, usuario)
 
+    indice_duplicacao = st.session_state.get("conta_duplicacao_indice")
+    if indice_duplicacao is not None and pode_alterar:
+        janela_duplicacao_conta(df, indice_duplicacao, empresa, usuario)
+
     if not pode_alterar:
-        st.info("Perfil de consulta: este usuario pode visualizar e baixar relatórios, mas nao pode incluir, editar, pagar, importar ou excluir contas.")
+        st.info("Perfil de consulta: este usuario pode visualizar e baixar relatórios, mas nao pode incluir, duplicar, editar, pagar, importar ou excluir contas.")
         st.session_state.manutencao_ativa = ""
         st.session_state.pop("conta_edicao_indice", None)
+        st.session_state.pop("conta_duplicacao_indice", None)
         return
 
     st.divider()
