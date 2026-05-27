@@ -286,6 +286,28 @@ def configurar_pagina() -> None:
                 margin: 0 0 1.2rem;
                 color: var(--mh-muted);
             }}
+            .password-panel-header {{
+                text-align: left;
+                margin-bottom: 1rem;
+            }}
+            .password-panel-header h2 {{
+                margin: 0 0 0.45rem;
+                font-size: 1.45rem;
+                line-height: 1.2;
+            }}
+            .password-panel-header p {{
+                margin: 0.35rem 0;
+                color: var(--mh-muted);
+            }}
+            .password-alert {{
+                border: 1px solid rgba(183, 121, 31, 0.25);
+                border-radius: 8px;
+                background: rgba(183, 121, 31, 0.10);
+                color: var(--mh-warning);
+                padding: 0.8rem 0.9rem;
+                font-weight: 700;
+                margin-bottom: 0.9rem;
+            }}
             .portal-header {{
                 display: flex;
                 align-items: center;
@@ -1547,15 +1569,27 @@ def tela_login(config: dict) -> None:
 
 def tela_troca_senha_padrao(config: dict) -> None:
     usuario = st.session_state.get("usuario_logado", "")
-    st.warning("Sua senha atual ainda é a senha padrão 123456. Por segurança, recomendamos trocar agora.")
-    st.info("Você pode trocar a senha ou escolher permanecer com ela. A senha fica registrada no controle do portal para o administrador DMLIMA.")
-
-    with st.form("form_troca_senha_padrao"):
-        nova_senha = st.text_input("Nova senha", type="password")
-        confirmar_senha = st.text_input("Confirmar nova senha", type="password")
-        col1, col2 = st.columns(2)
-        trocar = col1.form_submit_button("Trocar senha", use_container_width=True)
-        manter = col2.form_submit_button("Permanecer com 123456", use_container_width=True)
+    st.markdown('<div class="login-spacer"></div>', unsafe_allow_html=True)
+    _, col_senha, _ = st.columns([0.8, 1.35, 0.8])
+    with col_senha:
+        with st.container(border=True):
+            st.markdown(
+                """
+                <div class="password-panel-header">
+                    <div class="password-alert">Sua senha atual ainda é a senha padrão 123456.</div>
+                    <h2>Deseja trocar sua senha?</h2>
+                    <p>Por segurança, recomendamos criar uma senha própria agora.</p>
+                    <p>Você também pode permanecer com a senha atual. A senha fica registrada no controle do portal para o administrador DMLIMA.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            with st.form("form_troca_senha_padrao"):
+                nova_senha = st.text_input("Nova senha", type="password")
+                confirmar_senha = st.text_input("Confirmar nova senha", type="password")
+                col1, col2 = st.columns(2)
+                trocar = col1.form_submit_button("Trocar senha", use_container_width=True)
+                manter = col2.form_submit_button("Permanecer com 123456", use_container_width=True)
 
     if manter:
         st.session_state.exibir_troca_senha_padrao = False
