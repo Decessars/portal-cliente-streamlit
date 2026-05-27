@@ -19,7 +19,7 @@ PORTAL_CSV_PATH = DATA_DIR / "dados_portal.csv"
 CSV_PATH = DATA_DIR / "dados_demo.csv"
 XLSX_PATH = DATA_DIR / "dados_demo.xlsx"
 CONFIG_PATH = BASE_DIR / "config_clientes.json"
-LOGO_HEADER_PATH = ASSETS_DIR / "mh_log_logo_app_header.png"
+LOGO_FULL_PATH = ASSETS_DIR / "mh_log_logo_app_512.png"
 
 TEMA_MH = {
     "bg": "#f4faf5",
@@ -131,6 +131,13 @@ def configurar_pagina() -> None:
                 gap: 1rem;
                 min-width: 0;
             }}
+            .portal-logo {{
+                width: 150px;
+                max-width: 100%;
+                height: auto;
+                object-fit: contain;
+                display: block;
+            }}
             .portal-title {{
                 margin: 0;
                 font-size: 2rem;
@@ -196,6 +203,13 @@ def configurar_pagina() -> None:
                 display: flex;
                 justify-content: center;
                 margin-bottom: 0.75rem;
+            }}
+            .login-logo img {{
+                width: 150px;
+                max-width: 100%;
+                height: auto;
+                object-fit: contain;
+                display: block;
             }}
             .login-panel {{
                 border: 1px solid var(--mh-border);
@@ -294,9 +308,9 @@ def imagem_base64(caminho: Path) -> str:
 
 
 def mostrar_cabecalho(empresa: str, competencia: str, status_geral: str, status_tipo: str) -> None:
-    logo_b64 = imagem_base64(LOGO_HEADER_PATH)
+    logo_b64 = imagem_base64(LOGO_FULL_PATH)
     logo_html = (
-        f'<img src="data:image/png;base64,{logo_b64}" alt="MH LOG" style="width:154px;max-width:100%;height:auto;">'
+        f'<img class="portal-logo" src="data:image/png;base64,{logo_b64}" alt="MH LOG">'
         if logo_b64
         else '<strong style="color:var(--mh-accent);font-size:1.5rem;">MH LOG</strong>'
     )
@@ -463,9 +477,9 @@ def tela_login(config: dict) -> None:
     empresa_padrao = st.session_state.get("empresa_login", empresas[0] if empresas else "")
     empresa_idx = empresas.index(empresa_padrao) if empresa_padrao in empresas else 0
 
-    logo_b64 = imagem_base64(LOGO_HEADER_PATH)
+    logo_b64 = imagem_base64(LOGO_FULL_PATH)
     logo_html = (
-        f'<img src="data:image/png;base64,{logo_b64}" alt="MH LOG" style="width:154px;max-width:100%;height:auto;">'
+        f'<img src="data:image/png;base64,{logo_b64}" alt="MH LOG">'
         if logo_b64
         else '<strong style="color:var(--mh-accent);font-size:1.5rem;">MH LOG</strong>'
     )
@@ -515,8 +529,8 @@ def logout() -> None:
 
 
 def sidebar_filtros(config: dict) -> tuple[str, str]:
-    if LOGO_HEADER_PATH.exists():
-        st.sidebar.image(str(LOGO_HEADER_PATH), use_container_width=True)
+    if LOGO_FULL_PATH.exists():
+        st.sidebar.image(str(LOGO_FULL_PATH), width=210)
     st.sidebar.title("🔐 Sessão do Cliente")
 
     empresa = st.session_state.get("empresa_logada", "")
