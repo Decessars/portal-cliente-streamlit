@@ -1,1 +1,1 @@
-empresa,competencia,tipo,descricao,fornecedor_cliente,vencimento,pagamento_recebimento,valor,status,categoria,observacao,documento,tipo_conta_codigo,tipo_conta_nome,anexo_nome,anexo_caminho,criado_em,criado_por,excluido_em,excluido_por,ativo
+empresa,competencia,tipo,descricao,fornecedor_cliente,vencimento,pagamento_recebimento,valor,status,categoria,observacao,documento,tipo_conta_codigo,tipo_conta_nome,anexo_nome,anexo_caminho,codigo_pagamento,criado_em,criado_por,excluido_em,excluido_por,ativo

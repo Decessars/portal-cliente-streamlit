@@ -67,6 +67,7 @@ COLUNAS_EXTRAS = [
     "tipo_conta_nome",
     "anexo_nome",
     "anexo_caminho",
+    "codigo_pagamento",
     "criado_em",
     "criado_por",
     "excluido_em",
@@ -92,6 +93,7 @@ COLUNAS_TEXTO = [
     "tipo_conta_nome",
     "anexo_nome",
     "anexo_caminho",
+    "codigo_pagamento",
     "criado_em",
     "criado_por",
     "excluido_em",
@@ -107,6 +109,7 @@ COLUNAS_IMPORTACAO = [
     "categoria",
     "documento",
     "tipo_conta_codigo",
+    "codigo_pagamento",
     "observacao",
 ]
 
@@ -557,6 +560,7 @@ def criar_config_demo() -> dict:
         "usuarios": [
             {"usuario": "DMLIMA", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
             {"usuario": "VICTOR", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "ALEX", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
         ],
         "clientes": [
             {"empresa": "MHLOG"},
@@ -759,6 +763,7 @@ def gerar_modelo_importacao_csv() -> bytes:
                 "categoria": "Administrativo",
                 "documento": "NF-0001",
                 "tipo_conta_codigo": "2.1.6.02.001",
+                "codigo_pagamento": "34191.79001 01043.510047 91020.150008 8 123400000150000",
                 "observacao": "Linha de exemplo; apague antes de importar dados reais.",
             }
         ],
@@ -807,6 +812,7 @@ def preparar_importacao_contas(df_importado: pd.DataFrame, empresa: str, usuario
         status = status if status in {"aberto", "pendente", "vencido"} else "aberto"
         tipo_codigo = str(linha.get("tipo_conta_codigo", "")).strip()
         tipo_nome = TIPOS_CONTA_PAGAR.get(tipo_codigo, "")
+        codigo_pagamento = str(linha.get("codigo_pagamento", "")).strip()
 
         if not descricao or not fornecedor or pd.isna(vencimento) or valor <= 0:
             erros.append(f"Linha {linha_numero}: preencha descricao, fornecedor, vencimento válido e valor maior que zero.")
@@ -834,6 +840,7 @@ def preparar_importacao_contas(df_importado: pd.DataFrame, empresa: str, usuario
                 "tipo_conta_nome": tipo_nome,
                 "anexo_nome": "",
                 "anexo_caminho": "",
+                "codigo_pagamento": codigo_pagamento,
                 "criado_em": agora_br(),
                 "criado_por": usuario,
                 "excluido_em": "",
@@ -1152,6 +1159,7 @@ def preparar_tabela_contas(df: pd.DataFrame) -> pd.DataFrame:
         "categoria",
         "documento",
         "anexo_nome",
+        "codigo_pagamento",
         "criado_em",
         "criado_por",
     ]
@@ -1172,6 +1180,7 @@ def preparar_tabela_contas(df: pd.DataFrame) -> pd.DataFrame:
             "categoria": "Categoria",
             "documento": "Documento",
             "anexo_nome": "Anexo",
+            "codigo_pagamento": "Codigo de barras / Pix",
             "criado_em": "Incluído em",
             "criado_por": "Incluído por",
         }
@@ -1325,6 +1334,7 @@ def adicionar_conta_a_pagar(
         "tipo_conta_nome": tipo_nome,
         "anexo_nome": anexo_nome,
         "anexo_caminho": anexo_caminho,
+        "codigo_pagamento": dados_formulario["codigo_pagamento"],
         "criado_em": agora_br(),
         "criado_por": usuario,
         "excluido_em": "",
@@ -1392,6 +1402,11 @@ def editar_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str, dados_form
         posicao = posicoes[0]
 
     tipo_codigo, tipo_nome = obter_tipo_conta(dados_formulario["tipo_conta"])
+    anexo_nome, anexo_caminho = salvar_anexo(
+        dados_formulario.get("anexo"),
+        str(df_atualizado.iat[posicao, df_atualizado.columns.get_loc("empresa")] or ""),
+        dados_formulario["documento"],
+    )
     atualizacoes = {
         "descricao": dados_formulario["descricao"],
         "fornecedor_cliente": dados_formulario["fornecedor"],
@@ -1403,8 +1418,12 @@ def editar_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str, dados_form
         "documento": dados_formulario["documento"],
         "tipo_conta_codigo": tipo_codigo,
         "tipo_conta_nome": tipo_nome,
+        "codigo_pagamento": dados_formulario["codigo_pagamento"],
         "criado_por": str(df_atualizado.iat[posicao, df_atualizado.columns.get_loc("criado_por")] or usuario),
     }
+    if anexo_nome:
+        atualizacoes["anexo_nome"] = anexo_nome
+        atualizacoes["anexo_caminho"] = anexo_caminho
     for coluna, valor in atualizacoes.items():
         df_atualizado.iat[posicao, df_atualizado.columns.get_loc(coluna)] = valor
     return df_atualizado
@@ -1435,6 +1454,9 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
         tipo_conta_sel = st.selectbox("Tipo de conta", opcoes_tipo)
         tipo_conta_outro = st.text_input("Tipo de conta novo") if tipo_conta_sel == "Outro" else ""
+        c6, c7 = st.columns([1, 1])
+        anexo = c6.file_uploader("Anexo", type=["pdf", "png", "jpg", "jpeg", "xml", "csv", "xlsx"])
+        codigo_pagamento = c7.text_area("Codigo de barras ou chave Pix", height=88)
         enviar = st.form_submit_button("Salvar conta a pagar", use_container_width=True)
 
     if not enviar:
@@ -1448,6 +1470,9 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor <= 0:
         st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero.")
         return
+    if anexo is None and not codigo_pagamento.strip():
+        st.error("Inclua um anexo ou informe o codigo de barras/chave Pix.")
+        return
 
     documento_final = f"AP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     dados_formulario = {
@@ -1460,7 +1485,8 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         "categoria": tipo_nome.strip(),
         "documento": documento_final,
         "observacao": "",
-        "anexo": None,
+        "anexo": anexo,
+        "codigo_pagamento": codigo_pagamento.strip(),
     }
     df_atualizado = adicionar_conta_a_pagar(df, empresa, usuario, dados_formulario)
     salvar_dados_empresa(df_atualizado, empresa)
@@ -1556,6 +1582,16 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
 
         tipo_conta_sel = st.selectbox("Tipo de conta", opcoes_tipo, index=tipo_idx)
         tipo_conta_outro = st.text_input("Tipo de conta novo") if tipo_conta_sel == "Outro" else ""
+        anexo_atual = str(linha.get("anexo_nome", "") or "").strip()
+        if anexo_atual:
+            st.caption(f"Anexo atual: {anexo_atual}")
+        c6, c7 = st.columns([1, 1])
+        anexo = c6.file_uploader("Novo anexo", type=["pdf", "png", "jpg", "jpeg", "xml", "csv", "xlsx"])
+        codigo_pagamento = c7.text_area(
+            "Codigo de barras ou chave Pix",
+            value=str(linha.get("codigo_pagamento", "") or "").strip(),
+            height=88,
+        )
         b1, b2 = st.columns(2)
         salvar = b1.form_submit_button("Salvar alteracoes", use_container_width=True)
         cancelar = b2.form_submit_button("Cancelar", use_container_width=True)
@@ -1571,6 +1607,9 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
     if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor <= 0:
         st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero.")
         return
+    if not str(linha.get("anexo_nome", "") or "").strip() and anexo is None and not codigo_pagamento.strip():
+        st.error("Inclua um anexo ou informe o codigo de barras/chave Pix.")
+        return
 
     dados_formulario = {
         "descricao": descricao.strip(),
@@ -1582,6 +1621,8 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
         "categoria": tipo_nome.strip(),
         "documento": str(linha.get("documento", "") or "").strip() or f"AP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
         "observacao": str(linha.get("observacao", "") or "").strip(),
+        "anexo": anexo,
+        "codigo_pagamento": codigo_pagamento.strip(),
     }
     try:
         df_atualizado = editar_conta_a_pagar(df, indice, usuario, dados_formulario)
