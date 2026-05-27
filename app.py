@@ -5,7 +5,7 @@ import json
 import re
 import time
 import unicodedata
-from datetime import datetime
+from datetime import date, datetime
 from html import escape
 from io import BytesIO
 from pathlib import Path
@@ -41,6 +41,21 @@ TEMA_MH = {
     "warning": "#b7791f",
     "border": "#c8ddce",
 }
+
+MESES_PT_BR = [
+    (1, "Janeiro"),
+    (2, "Fevereiro"),
+    (3, "Março"),
+    (4, "Abril"),
+    (5, "Maio"),
+    (6, "Junho"),
+    (7, "Julho"),
+    (8, "Agosto"),
+    (9, "Setembro"),
+    (10, "Outubro"),
+    (11, "Novembro"),
+    (12, "Dezembro"),
+]
 
 # Tipos monitorados no dominio_dmls_08.py em CONTAS_PASSIVO_PAGAR_CONTROLADAS.
 TIPOS_CONTA_PAGAR = {
@@ -789,6 +804,44 @@ def formatar_data_br(valor: object) -> str:
     if pd.isna(data):
         return ""
     return data.strftime("%d/%m/%Y")
+
+
+def campo_data_ptbr(container: object, label: str, key_prefix: str, valor: object = None, permitir_vazio: bool = False) -> date | None:
+    data = pd.to_datetime(valor, errors="coerce") if valor is not None else pd.NaT
+    ano_atual = datetime.now().year
+    anos = list(range(ano_atual - 5, ano_atual + 11))
+    if not pd.isna(data) and int(data.year) not in anos:
+        anos.insert(0, int(data.year))
+
+    dias_opcoes = [""] + list(range(1, 32)) if permitir_vazio else list(range(1, 32))
+    meses_opcoes = [""] + [nome for _, nome in MESES_PT_BR] if permitir_vazio else [nome for _, nome in MESES_PT_BR]
+    anos_opcoes = [""] + anos if permitir_vazio else anos
+
+    dia_index = 0
+    mes_index = 0
+    ano_index = 0
+    if not pd.isna(data):
+        dia_valor = int(data.day)
+        mes_valor = MESES_PT_BR[int(data.month) - 1][1]
+        ano_valor = int(data.year)
+        dia_index = dias_opcoes.index(dia_valor)
+        mes_index = meses_opcoes.index(mes_valor)
+        ano_index = anos_opcoes.index(ano_valor)
+
+    container.markdown(f"**{label}**")
+    col_dia, col_mes, col_ano = container.columns([0.75, 1.35, 0.9])
+    dia = col_dia.selectbox("Dia", dias_opcoes, index=dia_index, key=f"{key_prefix}_dia")
+    mes_nome = col_mes.selectbox("Mês", meses_opcoes, index=mes_index, key=f"{key_prefix}_mes")
+    ano = col_ano.selectbox("Ano", anos_opcoes, index=ano_index, key=f"{key_prefix}_ano")
+
+    if not dia or not mes_nome or not ano:
+        return None
+
+    mes = next(numero for numero, nome in MESES_PT_BR if nome == mes_nome)
+    try:
+        return date(int(ano), int(mes), int(dia))
+    except ValueError:
+        return None
 
 
 def agora_br() -> str:
@@ -1973,7 +2026,7 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
     with st.form("form_conta_a_pagar", clear_on_submit=True):
         c3, c4, c5 = st.columns([1, 1, 1])
-        vencimento = c3.date_input("Vencimento", value=None, format="DD/MM/YYYY")
+        vencimento = campo_data_ptbr(c3, "Vencimento", "inclusao_vencimento", permitir_vazio=True)
         valor_texto = c4.text_input("Valor", placeholder="Ex.: 1.000,00")
         status = c5.selectbox("Status", ["", "aberto", "pendente", "vencido"], index=0)
 
@@ -2108,7 +2161,7 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
         fornecedor = c2.text_input("Fornecedor", value=str(linha.get("fornecedor_cliente", "")))
 
         c3, c4, c5 = st.columns([1, 1, 1])
-        vencimento = c3.date_input("Vencimento", value=vencimento_atual.date(), format="DD/MM/YYYY")
+        vencimento = campo_data_ptbr(c3, "Vencimento", f"{key_prefix}_vencimento", vencimento_atual.date())
         valor_texto = c4.text_input(
             "Valor",
             value=formatar_moeda_br(float(linha.get("valor", 0) or 0)).replace("R$ ", ""),
@@ -2146,8 +2199,8 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
     tipo_conta = resolver_opcao_digitavel(tipo_conta_sel, tipo_conta_novo)
     _, tipo_nome = obter_tipo_conta(tipo_conta)
     valor = parse_valor_br(valor_texto)
-    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor is None or valor <= 0:
-        st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero. Use ponto para milhar e virgula para centavos.")
+    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or vencimento is None or valor is None or valor <= 0:
+        st.error("Preencha descricao, fornecedor, tipo de conta, vencimento valido e valor maior que zero. Use ponto para milhar e virgula para centavos.")
         return
     dados_formulario = {
         "descricao": descricao.strip(),
@@ -2198,7 +2251,7 @@ def formulario_duplicacao_conta(df: pd.DataFrame, indice: int, empresa: str, usu
         c2.text_input("Fornecedor", value=str(linha.get("fornecedor_cliente", "")), disabled=True)
 
         c3, c4, c5 = st.columns([1, 1, 1])
-        vencimento = c3.date_input("Novo vencimento", value=vencimento_original.date(), format="DD/MM/YYYY")
+        vencimento = campo_data_ptbr(c3, "Novo vencimento", f"{key_prefix}_vencimento", vencimento_original.date())
         valor_texto = c4.text_input(
             "Valor",
             value=formatar_moeda_br(float(linha.get("valor", 0) or 0)).replace("R$ ", ""),
