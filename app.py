@@ -305,6 +305,45 @@ def configurar_pagina() -> None:
             [data-testid="stMetricValue"] {{
                 color: var(--mh-accent);
             }}
+            .metric-grid {{
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+                gap: 1rem;
+                margin: 1rem 0;
+            }}
+            .metric-card {{
+                background: var(--mh-panel);
+                border: 1px solid var(--mh-border);
+                border-radius: 8px;
+                padding: 1rem 1.15rem;
+                min-width: 0;
+                box-shadow: 0 6px 18px rgba(23, 51, 38, 0.07);
+            }}
+            .metric-label {{
+                color: var(--mh-muted);
+                font-size: 0.9rem;
+                font-weight: 700;
+                margin-bottom: 0.45rem;
+            }}
+            .metric-value {{
+                color: var(--mh-accent);
+                font-size: clamp(1.35rem, 3.2vw, 2rem);
+                line-height: 1.15;
+                font-weight: 500;
+                white-space: nowrap;
+            }}
+            .metric-delta {{
+                display: inline-flex;
+                align-items: center;
+                width: fit-content;
+                margin-top: 0.55rem;
+                border-radius: 999px;
+                background: rgba(21, 128, 61, 0.10);
+                color: var(--mh-ok);
+                padding: 0.12rem 0.45rem;
+                font-size: 0.85rem;
+                font-weight: 800;
+            }}
             .login-logo {{
                 display: flex;
                 justify-content: center;
@@ -491,6 +530,19 @@ def configurar_pagina() -> None:
                 [data-testid="stMetricValue"] {{
                     font-size: 1.15rem;
                 }}
+                .metric-grid {{
+                    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+                    gap: 0.75rem;
+                }}
+                .metric-card {{
+                    padding: 0.85rem 0.95rem;
+                }}
+                .metric-label {{
+                    font-size: 0.82rem;
+                }}
+                .metric-value {{
+                    font-size: clamp(1.1rem, 5.2vw, 1.55rem);
+                }}
                 div.stButton > button,
                 div.stDownloadButton > button,
                 div.stFormSubmitButton > button {{
@@ -556,6 +608,24 @@ def mostrar_cabecalho(empresa: str, status_geral: str, status_tipo: str) -> None
         """,
         unsafe_allow_html=True,
     )
+
+
+def renderizar_metricas(cards: list[dict[str, object]]) -> None:
+    itens = []
+    for card in cards:
+        delta = card.get("delta")
+        delta_html = f'<div class="metric-delta">↑ {escape(str(delta))}</div>' if delta is not None else ""
+        itens.append(
+            f"""
+            <div class="metric-card">
+                <div class="metric-label">{escape(str(card["label"]))}</div>
+                <div class="metric-value">{escape(str(card["value"]))}</div>
+                {delta_html}
+            </div>
+            """
+        )
+
+    st.markdown(f'<div class="metric-grid">{"".join(itens)}</div>', unsafe_allow_html=True)
 
 
 def criar_config_demo() -> dict:
@@ -1837,16 +1907,20 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.subheader("Painel de pagamentos")
     st.caption("Visao para acompanhar o que precisa ser pago por vencimento.")
 
-    c1, c2, c3, c4 = st.columns(4, gap="small")
-    c1.metric("Total a pagar", formatar_moeda_br(total_aberto))
-    c2.metric("Vencidas", formatar_moeda_br(vencidas["valor"].sum()), int(len(vencidas)))
-    c3.metric("Vence hoje", formatar_moeda_br(vence_hoje["valor"].sum()), int(len(vence_hoje)))
-    c4.metric("Proximos 7 dias", formatar_moeda_br(proximos_7["valor"].sum()), int(len(proximos_7)))
-
-    c5, c6, c7 = st.columns(3, gap="small")
-    c5.metric("Contas em aberto", int(len(contas)))
-    c6.metric("No prazo", int(len(abertas_no_prazo)))
-    c7.metric("Ticket medio", formatar_moeda_br(total_aberto / len(contas)) if len(contas) else formatar_moeda_br(0))
+    renderizar_metricas(
+        [
+            {"label": "Total a pagar", "value": formatar_moeda_br(total_aberto)},
+            {"label": "Vencidas", "value": formatar_moeda_br(vencidas["valor"].sum()), "delta": int(len(vencidas))},
+            {"label": "Vence hoje", "value": formatar_moeda_br(vence_hoje["valor"].sum()), "delta": int(len(vence_hoje))},
+            {"label": "Proximos 7 dias", "value": formatar_moeda_br(proximos_7["valor"].sum()), "delta": int(len(proximos_7))},
+            {"label": "Contas em aberto", "value": int(len(contas))},
+            {"label": "No prazo", "value": int(len(abertas_no_prazo))},
+            {
+                "label": "Ticket medio",
+                "value": formatar_moeda_br(total_aberto / len(contas)) if len(contas) else formatar_moeda_br(0),
+            },
+        ]
+    )
 
     if len(vencidas):
         st.error("Existem contas vencidas nesta empresa. Revise os vencimentos antes do pagamento.")
