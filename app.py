@@ -375,6 +375,11 @@ def criar_config_demo() -> dict:
                 "senha": "123456",
                 "competencias": ["2026-01", "2026-02", "2026-03"],
             },
+            {
+                "empresa": "MH BRASIL",
+                "senha": "123456",
+                "competencias": ["2026-01", "2026-02", "2026-03"],
+            },
         ]
     }
     CONFIG_PATH.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -412,6 +417,13 @@ def dados_demo() -> pd.DataFrame:
         ["MHLOG", "2026-01", "relatorio", "DRE gerencial", "Escritorio Contabil", "2026-01-31", "", 0.00, "disponível", "Relatorios gerenciais", "Demonstrativo para reuniao mensal", "REL-MHL-001"],
         ["MHLOG", "2026-02", "conta_a_pagar", "Manutencao de frota", "Oficina Parceira", "2026-02-19", "", 2250.00, "aberto", "Operacional", "Servico aprovado", "AP-MHL-002"],
         ["MHLOG", "2026-02", "receita", "Contrato mensal transporte", "Cliente Logistico", "2026-02-28", "2026-02-28", 31400.00, "recebido", "Receita recorrente", "Recebido por transferencia", "REC-MHL-002"],
+        ["MH BRASIL", "2026-01", "conta_a_pagar", "Servicos administrativos", "Fornecedor Brasil", "2026-01-14", "", 1850.00, "aberto", "Administrativo", "Boleto aguardando aprovacao", "AP-MHB-001"],
+        ["MH BRASIL", "2026-01", "conta_paga", "Sistema financeiro", "SaaS Financeiro", "2026-01-09", "2026-01-09", 620.00, "pago", "Tecnologia", "Assinatura mensal", "PG-MHB-001"],
+        ["MH BRASIL", "2026-01", "receita", "Contrato de apoio operacional", "Cliente Brasil", "2026-01-30", "2026-01-30", 19800.00, "recebido", "Receita operacional", "Recebimento demonstrativo", "REC-MHB-001"],
+        ["MH BRASIL", "2026-01", "imposto", "DAS Simples Nacional", "Receita Federal", "2026-02-20", "", 2320.00, "pendente", "Tributos", "Guia demonstrativa em preparacao", "IMP-MHB-001"],
+        ["MH BRASIL", "2026-01", "relatorio", "Resumo mensal", "Escritorio Contabil", "2026-01-31", "", 0.00, "disponível", "Relatorios contabeis", "Arquivo demonstrativo disponivel", "REL-MHB-001"],
+        ["MH BRASIL", "2026-02", "conta_a_pagar", "Consultoria operacional", "Consultoria Beta", "2026-02-18", "", 2750.00, "aberto", "Operacional", "Servico programado", "AP-MHB-002"],
+        ["MH BRASIL", "2026-02", "receita", "Mensalidade contrato Brasil", "Cliente Brasil", "2026-02-28", "2026-02-28", 21400.00, "recebido", "Receita recorrente", "Recebido por PIX", "REC-MHB-002"],
     ]
     return pd.DataFrame(registros, columns=COLUNAS_DADOS)
 

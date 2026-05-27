@@ -33,6 +33,7 @@ Use estes acessos demonstrativos para testar:
 DMLIMA / 123456
 VICTOR / 123456
 MHLOG  / 123456
+MH BRASIL / 123456
 ```
 
 ## Publicação No Streamlit Community Cloud
