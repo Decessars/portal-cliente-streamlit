@@ -1191,6 +1191,46 @@ def exibir_contas(df: pd.DataFrame) -> None:
     )
 
 
+def exibir_contas_com_acoes(df: pd.DataFrame, empresa: str, usuario: str) -> None:
+    if df.empty:
+        st.info("Nenhum registro encontrado para este filtro.")
+        return
+
+    contas = df.sort_values(["vencimento_dt", "descricao"], na_position="last").copy()
+    cabecalho = st.columns([1, 2.2, 2.2, 1.1, 1, 1.2, 1.5])
+    for col, label in zip(cabecalho, ["Vencimento", "Descrição", "Fornecedor", "Valor", "Status", "Documento", "Ações"]):
+        col.caption(label)
+
+    for indice, linha in contas.iterrows():
+        cols = st.columns([1, 2.2, 2.2, 1.1, 1, 1.2, 1.5])
+        cols[0].write(formatar_data_br(linha.get("vencimento")))
+        cols[1].write(str(linha.get("descricao", "")))
+        cols[2].write(str(linha.get("fornecedor_cliente", "")))
+        cols[3].write(formatar_moeda_br(float(linha.get("valor", 0) or 0)))
+        cols[4].write(str(linha.get("status", "")))
+        cols[5].write(str(linha.get("documento", "")))
+        acao_cols = cols[6].columns(3)
+        if acao_cols[0].button("✏️", key=f"editar_{indice}", help="Editar conta"):
+            selecionar_conta_para_edicao(indice)
+            st.rerun()
+        if acao_cols[1].button("✅", key=f"pagar_{indice}", help="Marcar como pago"):
+            try:
+                df_atualizado = marcar_conta_como_paga(df, indice, usuario)
+                salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
+                st.success("Conta marcada como paga.")
+                st.rerun()
+            except ValueError as erro:
+                st.error(str(erro))
+        if acao_cols[2].button("🗑️", key=f"excluir_{indice}", help="Excluir conta"):
+            try:
+                df_atualizado = excluir_conta_a_pagar(df, indice, usuario)
+                salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
+                st.success("Conta excluída da lista ativa.")
+                st.rerun()
+            except ValueError as erro:
+                st.error(str(erro))
+
+
 def limpar_nome_arquivo(nome: str) -> str:
     base = Path(nome).name
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", base).strip("._") or "anexo"
@@ -1273,6 +1313,29 @@ def excluir_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str) -> pd.Dat
     return df_atualizado
 
 
+def marcar_conta_como_paga(df: pd.DataFrame, indice: int, usuario: str) -> pd.DataFrame:
+    df_atualizado = df.copy()
+    if indice not in df_atualizado.index:
+        raise ValueError("Conta selecionada não foi encontrada na base atual.")
+
+    posicao = df_atualizado.index.get_loc(indice)
+    if isinstance(posicao, slice):
+        posicao = posicao.start
+    elif not isinstance(posicao, int):
+        posicoes = list(posicao)
+        if not posicoes:
+            raise ValueError("Conta selecionada não foi encontrada na base atual.")
+        posicao = posicoes[0]
+
+    df_atualizado.iat[posicao, df_atualizado.columns.get_loc("status")] = "pago"
+    df_atualizado.iat[posicao, df_atualizado.columns.get_loc("pagamento_recebimento")] = datetime.now().strftime("%Y-%m-%d")
+    df_atualizado.iat[posicao, df_atualizado.columns.get_loc("observacao")] = (
+        str(df_atualizado.iat[posicao, df_atualizado.columns.get_loc("observacao")] or "").strip()
+        + f" | Pago registrado por {usuario} em {agora_br()}"
+    ).strip(" |")
+    return df_atualizado
+
+
 def editar_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str, dados_formulario: dict) -> pd.DataFrame:
     df_atualizado = df.copy()
     if indice not in df_atualizado.index:
@@ -1304,6 +1367,10 @@ def editar_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str, dados_form
     for coluna, valor in atualizacoes.items():
         df_atualizado.iat[posicao, df_atualizado.columns.get_loc(coluna)] = valor
     return df_atualizado
+
+
+def selecionar_conta_para_edicao(indice: int) -> None:
+    st.session_state.conta_edicao_indice = indice
 
 
 def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
@@ -1432,7 +1499,13 @@ def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: s
         )
         opcoes[rotulo] = indice
 
-    selecionada = st.selectbox("Conta a editar", list(opcoes.keys()), key="editar_conta_select")
+    indice_preselecionado = st.session_state.get("conta_edicao_indice")
+    labels = list(opcoes.keys())
+    index_padrao = 0
+    if indice_preselecionado in opcoes.values():
+        index_padrao = labels.index(next(label for label, idx in opcoes.items() if idx == indice_preselecionado))
+
+    selecionada = st.selectbox("Conta a editar", labels, index=index_padrao, key="editar_conta_select")
     indice = opcoes[selecionada]
     linha = df.loc[indice]
     vencimento_atual = pd.to_datetime(linha.get("vencimento"), errors="coerce")
@@ -1491,6 +1564,7 @@ def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: s
         return
 
     salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
+    st.session_state.pop("conta_edicao_indice", None)
     st.success("Conta a pagar atualizada com sucesso.")
     st.rerun()
 
@@ -1571,7 +1645,7 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     if contas.empty:
         st.info("Nenhum registro encontrado para este filtro.")
     else:
-        exibir_contas(contas)
+        exibir_contas_com_acoes(contas, empresa, usuario)
 
     st.divider()
     with st.expander("🗑️ Excluir conta a pagar", expanded=False):
