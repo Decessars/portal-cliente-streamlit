@@ -155,6 +155,9 @@ SUGESTOES_CATEGORIA = [
     "Tecnologia",
 ]
 
+OPCAO_NOVO = "Novo"
+OPCOES_OCULTAS = {"outro", "decessars monteiro"}
+
 MODULOS_CONTABEIS = [
     {"id": "contas_a_pagar", "titulo": "Contas a Pagar", "ativo": True},
     {"id": "contas_a_receber", "titulo": "Contas a Receber", "ativo": False},
@@ -738,6 +741,8 @@ def opcoes_com_historico(df: pd.DataFrame, coluna: str, padroes: list[str]) -> l
         texto = str(opcao or "").strip()
         chave = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii").casefold()
         chave = re.sub(r"\s+", " ", chave).strip()
+        if chave in OPCOES_OCULTAS:
+            continue
         if chave in chaves_vistas:
             continue
         chaves_vistas.add(chave)
@@ -745,9 +750,9 @@ def opcoes_com_historico(df: pd.DataFrame, coluna: str, padroes: list[str]) -> l
     return unicas
 
 
-def resolver_opcao_digitavel(selecao: str, texto_outro: str) -> str:
-    if selecao == "Outro":
-        return texto_outro.strip()
+def resolver_opcao_digitavel(selecao: str, texto_novo: str) -> str:
+    if selecao == OPCAO_NOVO:
+        return texto_novo.strip()
     return str(selecao or "").strip()
 
 
@@ -1298,6 +1303,8 @@ def opcoes_tipo_conta_com_historico(df: pd.DataFrame) -> list[str]:
             continue
         chave = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii").casefold()
         chave = " ".join(chave.split())
+        if chave in OPCOES_OCULTAS:
+            continue
         if chave in chaves_vistas:
             continue
         chaves_vistas.add(chave)
@@ -1437,15 +1444,15 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### + Incluir conta a pagar")
     st.caption("A inclusao fica registrada com data, hora e usuario logado.")
 
-    opcoes_tipo = opcoes_tipo_conta_com_historico(df) + ["Outro"]
-    opcoes_descricao = opcoes_com_historico(df, "descricao", SUGESTOES_DESCRICAO) + ["Outro"]
-    opcoes_fornecedor = opcoes_com_historico(df, "fornecedor_cliente", SUGESTOES_FORNECEDOR) + ["Outro"]
+    opcoes_tipo = opcoes_tipo_conta_com_historico(df) + [OPCAO_NOVO]
+    opcoes_descricao = opcoes_com_historico(df, "descricao", SUGESTOES_DESCRICAO) + [OPCAO_NOVO]
+    opcoes_fornecedor = opcoes_com_historico(df, "fornecedor_cliente", SUGESTOES_FORNECEDOR) + [OPCAO_NOVO]
     with st.form("form_conta_a_pagar", clear_on_submit=True):
         c1, c2 = st.columns(2)
         descricao_sel = c1.selectbox("Descricao", opcoes_descricao, index=0)
         fornecedor_sel = c2.selectbox("Fornecedor", opcoes_fornecedor, index=0)
-        descricao_outro = c1.text_input("Descricao nova") if descricao_sel == "Outro" else ""
-        fornecedor_outro = c2.text_input("Fornecedor novo") if fornecedor_sel == "Outro" else ""
+        descricao_nova = c1.text_input("Nova descricao") if descricao_sel == OPCAO_NOVO else ""
+        fornecedor_novo = c2.text_input("Novo fornecedor") if fornecedor_sel == OPCAO_NOVO else ""
 
         c3, c4, c5 = st.columns([1, 1, 1])
         vencimento = c3.date_input("Vencimento")
@@ -1453,7 +1460,8 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         status = c5.selectbox("Status", ["aberto", "pendente", "vencido"])
 
         tipo_conta_sel = st.selectbox("Tipo de conta", opcoes_tipo)
-        tipo_conta_outro = st.text_input("Tipo de conta novo") if tipo_conta_sel == "Outro" else ""
+        tipo_conta_novo = st.text_input("Novo tipo de conta") if tipo_conta_sel == OPCAO_NOVO else ""
+        observacao = st.text_area("Descricao / observacao livre", height=88)
         c6, c7 = st.columns([1, 1])
         anexo = c6.file_uploader("Anexo", type=["pdf", "png", "jpg", "jpeg", "xml", "csv", "xlsx"])
         codigo_pagamento = c7.text_area("Codigo de barras ou chave Pix", height=88)
@@ -1462,9 +1470,9 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     if not enviar:
         return
 
-    descricao = resolver_opcao_digitavel(descricao_sel, descricao_outro)
-    fornecedor = resolver_opcao_digitavel(fornecedor_sel, fornecedor_outro)
-    tipo_conta = resolver_opcao_digitavel(tipo_conta_sel, tipo_conta_outro)
+    descricao = resolver_opcao_digitavel(descricao_sel, descricao_nova)
+    fornecedor = resolver_opcao_digitavel(fornecedor_sel, fornecedor_novo)
+    tipo_conta = resolver_opcao_digitavel(tipo_conta_sel, tipo_conta_novo)
     _, tipo_nome = obter_tipo_conta(tipo_conta)
 
     if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor <= 0:
@@ -1484,7 +1492,7 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         "tipo_conta": tipo_conta,
         "categoria": tipo_nome.strip(),
         "documento": documento_final,
-        "observacao": "",
+        "observacao": observacao.strip(),
         "anexo": anexo,
         "codigo_pagamento": codigo_pagamento.strip(),
     }
@@ -1552,7 +1560,7 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
     if pd.isna(vencimento_atual):
         vencimento_atual = pd.Timestamp(datetime.now().date())
 
-    opcoes_tipo = opcoes_tipo_conta_com_historico(df) + ["Outro"]
+    opcoes_tipo = opcoes_tipo_conta_com_historico(df) + [OPCAO_NOVO]
     tipo_codigo_atual = str(linha.get("tipo_conta_codigo", "") or "").strip()
     tipo_nome_atual = str(linha.get("tipo_conta_nome", "") or "").strip()
     tipo_rotulo = f"{tipo_codigo_atual} - {tipo_nome_atual}" if tipo_codigo_atual and tipo_nome_atual else tipo_nome_atual
@@ -1581,7 +1589,12 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
         status = c5.selectbox("Status", status_opcoes, index=status_opcoes.index(status_atual) if status_atual in status_opcoes else 0)
 
         tipo_conta_sel = st.selectbox("Tipo de conta", opcoes_tipo, index=tipo_idx)
-        tipo_conta_outro = st.text_input("Tipo de conta novo") if tipo_conta_sel == "Outro" else ""
+        tipo_conta_novo = st.text_input("Novo tipo de conta") if tipo_conta_sel == OPCAO_NOVO else ""
+        observacao = st.text_area(
+            "Descricao / observacao livre",
+            value=str(linha.get("observacao", "") or "").strip(),
+            height=88,
+        )
         anexo_atual = str(linha.get("anexo_nome", "") or "").strip()
         if anexo_atual:
             st.caption(f"Anexo atual: {anexo_atual}")
@@ -1602,7 +1615,7 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
     if not salvar:
         return
 
-    tipo_conta = resolver_opcao_digitavel(tipo_conta_sel, tipo_conta_outro)
+    tipo_conta = resolver_opcao_digitavel(tipo_conta_sel, tipo_conta_novo)
     _, tipo_nome = obter_tipo_conta(tipo_conta)
     if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor <= 0:
         st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero.")
@@ -1620,7 +1633,7 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
         "tipo_conta": tipo_conta,
         "categoria": tipo_nome.strip(),
         "documento": str(linha.get("documento", "") or "").strip() or f"AP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-        "observacao": str(linha.get("observacao", "") or "").strip(),
+        "observacao": observacao.strip(),
         "anexo": anexo,
         "codigo_pagamento": codigo_pagamento.strip(),
     }
