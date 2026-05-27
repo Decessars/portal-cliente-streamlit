@@ -275,6 +275,8 @@ def configurar_pagina() -> None:
                 background: var(--mh-accent);
                 color: #ffffff;
                 font-weight: 700;
+                min-height: 2.7rem;
+                white-space: normal;
             }}
             div.stButton > button:hover,
             div.stDownloadButton > button:hover,
@@ -296,20 +298,96 @@ def configurar_pagina() -> None:
                 border-color: var(--mh-border);
             }}
             @media (max-width: 760px) {{
+                [data-testid="stAppViewContainer"] {{
+                    background: linear-gradient(180deg, var(--mh-bg) 0%, #ffffff 78%);
+                }}
+                .main .block-container {{
+                    padding-left: 0.85rem;
+                    padding-right: 0.85rem;
+                    padding-top: 0.75rem;
+                    max-width: 100%;
+                }}
+                [data-testid="stSidebar"] {{
+                    border-right: 0;
+                    border-bottom: 1px solid var(--mh-border);
+                }}
                 .portal-header {{
                     align-items: flex-start;
                     flex-direction: column;
+                    gap: 0.8rem;
+                    padding: 0.95rem;
                 }}
                 .portal-brand {{
                     align-items: flex-start;
                     flex-direction: column;
+                    gap: 0.55rem;
+                }}
+                .portal-logo {{
+                    width: 112px;
                 }}
                 .portal-meta {{
                     justify-content: flex-start;
                     min-width: 0;
+                    width: 100%;
+                }}
+                .meta-pill {{
+                    flex: 1 1 100%;
+                    padding: 0.5rem 0.65rem;
                 }}
                 .portal-title {{
-                    font-size: 1.55rem;
+                    font-size: 1.35rem;
+                    line-height: 1.2;
+                }}
+                .portal-subtitle {{
+                    font-size: 0.9rem;
+                }}
+                .login-logo img {{
+                    width: 118px;
+                }}
+                .login-panel {{
+                    padding: 1rem;
+                }}
+                .login-panel h2 {{
+                    font-size: 1.25rem;
+                }}
+                .empresa-card {{
+                    min-height: 0;
+                    padding: 0.9rem;
+                    margin-top: 0.2rem;
+                }}
+                .empresa-card h3 {{
+                    font-size: 1rem;
+                }}
+                .empresa-card p {{
+                    font-size: 0.86rem;
+                }}
+                [data-testid="stMetric"] {{
+                    padding: 0.75rem 0.85rem;
+                }}
+                [data-testid="stMetricLabel"] {{
+                    font-size: 0.78rem;
+                }}
+                [data-testid="stMetricValue"] {{
+                    font-size: 1.15rem;
+                }}
+                div.stButton > button,
+                div.stDownloadButton > button,
+                div.stFormSubmitButton > button {{
+                    min-height: 3rem;
+                    font-size: 0.95rem;
+                }}
+                [data-testid="stDataFrame"] {{
+                    overflow-x: auto;
+                }}
+                h1 {{
+                    font-size: 1.7rem;
+                    line-height: 1.2;
+                }}
+                h2 {{
+                    font-size: 1.35rem;
+                }}
+                h3 {{
+                    font-size: 1.12rem;
                 }}
             }}
         </style>
@@ -725,7 +803,7 @@ def dashboard_empresas(config: dict, df: pd.DataFrame) -> None:
     st.title("Dashboard por empresa")
     st.caption("Escolha uma empresa para abrir as contas a pagar e os indicadores dela.")
 
-    cols = st.columns(2)
+    cols = st.columns(2, gap="medium")
     for indice, empresa in enumerate(empresas):
         contas_empresa = df.loc[
             (df["empresa"] == empresa)
@@ -989,18 +1067,18 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.subheader("💸 Contas a Pagar")
     st.caption("Lista operacional de obrigações em aberto, com inclusão manual e anexos.")
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4 = st.columns(4, gap="small")
     c1.metric("Total em aberto", formatar_moeda_br(total_aberto))
     c2.metric("Quantidade", int(len(contas)))
     c3.metric("Vencidas", int(len(vencidas)))
     c4.metric("Próximos vencimentos", int(len(proximos)))
 
     if len(vencidas):
-        st.error("Existem contas vencidas neste filtro. Revise os vencimentos antes do pagamento.")
+        st.error("Existem contas vencidas nesta empresa. Revise os vencimentos antes do pagamento.")
     elif len(contas):
         st.warning("Existem contas em aberto aguardando acompanhamento.")
     else:
-        st.success("Nenhuma conta a pagar em aberto para esta competência.")
+        st.success("Nenhuma conta a pagar em aberto para esta empresa.")
 
     with st.expander("➕ Incluir nova conta a pagar", expanded=False):
         formulario_inclusao(df, empresa, usuario)
