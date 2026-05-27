@@ -219,6 +219,47 @@ def configurar_pagina() -> None:
             .card-neutro {{
                 border-left: 5px solid var(--mh-accent);
             }}
+            .login-shell {{
+                max-width: 920px;
+                margin: 2.5rem auto 0;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1.2rem;
+                align-items: stretch;
+            }}
+            .login-panel {{
+                border: 1px solid var(--mh-border);
+                border-radius: 8px;
+                background: var(--mh-panel);
+                box-shadow: 0 12px 34px rgba(23, 51, 38, 0.10);
+                padding: 1.3rem;
+            }}
+            .login-panel h2 {{
+                margin: 0 0 0.35rem;
+                font-size: 1.55rem;
+            }}
+            .login-panel p {{
+                color: var(--mh-muted);
+                margin: 0.25rem 0;
+            }}
+            .login-brand {{
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                gap: 0.85rem;
+                background: linear-gradient(145deg, var(--mh-panel-soft), #ffffff);
+            }}
+            .login-badge {{
+                display: inline-flex;
+                width: fit-content;
+                border-radius: 8px;
+                background: rgba(47, 143, 91, 0.12);
+                color: var(--mh-accent);
+                border: 1px solid rgba(47, 143, 91, 0.24);
+                padding: 0.42rem 0.62rem;
+                font-size: 0.82rem;
+                font-weight: 800;
+            }}
             div.stButton > button,
             div.stDownloadButton > button {{
                 border-radius: 8px;
@@ -260,6 +301,10 @@ def configurar_pagina() -> None:
                 }}
                 .portal-title {{
                     font-size: 1.55rem;
+                }}
+                .login-shell {{
+                    grid-template-columns: 1fr;
+                    margin-top: 1rem;
                 }}
             }}
         </style>
@@ -415,26 +460,109 @@ def formatar_moeda(valor: float) -> str:
 
 
 def validar_login(config: dict, empresa: str, senha_digitada: str) -> bool:
-    cliente = next((item for item in config["clientes"] if item["empresa"] == empresa), None)
-    return bool(cliente and senha_digitada and senha_digitada == cliente["senha"])
+    senha_configurada = obter_senha_cliente(config, empresa)
+    return bool(senha_configurada and senha_digitada and senha_digitada == senha_configurada)
 
 
-def sidebar_filtros(config: dict) -> tuple[str, str, str]:
+def obter_cliente(config: dict, empresa: str) -> dict:
+    return next((item for item in config["clientes"] if item["empresa"] == empresa), {})
+
+
+def obter_senha_cliente(config: dict, empresa: str) -> str:
+    """Lê senha do Streamlit Secrets quando existir; senão usa o JSON demo local."""
+    try:
+        clientes_secret = st.secrets.get("clientes", {})
+        if empresa in clientes_secret:
+            return str(clientes_secret[empresa])
+    except Exception:
+        pass
+
+    return str(obter_cliente(config, empresa).get("senha", ""))
+
+
+def inicializar_sessao() -> None:
+    st.session_state.setdefault("autenticado", False)
+    st.session_state.setdefault("empresa_logada", "")
+    st.session_state.setdefault("competencia_logada", "")
+
+
+def tela_login(config: dict) -> None:
+    empresas = [cliente["empresa"] for cliente in config["clientes"]]
+    empresa_padrao = st.session_state.get("empresa_login", empresas[0] if empresas else "")
+    empresa_idx = empresas.index(empresa_padrao) if empresa_padrao in empresas else 0
+
+    logo_b64 = imagem_base64(LOGO_HEADER_PATH)
+    logo_html = (
+        f'<img src="data:image/png;base64,{logo_b64}" alt="MH LOG" style="width:154px;max-width:100%;height:auto;">'
+        if logo_b64
+        else '<strong style="color:var(--mh-accent);font-size:1.5rem;">MH LOG</strong>'
+    )
+
+    st.write("")
+    col_info, col_login = st.columns([1.05, 0.95], gap="large", vertical_alignment="center")
+
+    with col_info:
+        st.markdown(
+            f"""
+            <section class="login-panel login-brand">
+                <div>{logo_html}</div>
+                <span class="login-badge">Acesso restrito</span>
+                <h2>Portal Contábil do Cliente</h2>
+                <p>Consulte informações contábeis e financeiras liberadas pelo escritório.</p>
+                <p>Use a empresa, competência e senha de acesso fornecidas pela equipe.</p>
+            </section>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with col_login:
+        with st.container(border=True):
+            st.subheader("Entrar no portal")
+            st.caption("Informe seus dados para continuar.")
+            with st.form("form_login", clear_on_submit=False):
+                empresa = st.selectbox("Empresa", empresas, index=empresa_idx)
+                cliente_atual = obter_cliente(config, empresa)
+                competencias = cliente_atual.get("competencias", [])
+                competencia = st.selectbox("Competência", competencias)
+                senha = st.text_input("Senha de acesso", type="password")
+                entrar = st.form_submit_button("Entrar", use_container_width=True)
+
+            if entrar:
+                if validar_login(config, empresa, senha):
+                    st.session_state.autenticado = True
+                    st.session_state.empresa_logada = empresa
+                    st.session_state.competencia_logada = competencia
+                    st.session_state.empresa_login = empresa
+                    st.rerun()
+                else:
+                    st.error("Empresa, competência ou senha inválida.")
+
+
+def logout() -> None:
+    st.session_state.autenticado = False
+    st.session_state.empresa_logada = ""
+    st.session_state.competencia_logada = ""
+    st.rerun()
+
+
+def sidebar_filtros(config: dict) -> tuple[str, str]:
     if LOGO_HEADER_PATH.exists():
         st.sidebar.image(str(LOGO_HEADER_PATH), use_container_width=True)
-    st.sidebar.title("🔐 Acesso do Cliente")
-    st.sidebar.caption("Use apenas dados demonstrativos nesta versao.")
+    st.sidebar.title("🔐 Sessão do Cliente")
 
-    empresas = [cliente["empresa"] for cliente in config["clientes"]]
-    empresa = st.sidebar.selectbox("Empresa", empresas)
+    empresa = st.session_state.get("empresa_logada", "")
+    cliente_atual = obter_cliente(config, empresa)
+    competencias = cliente_atual.get("competencias", [])
+    competencia_atual = st.session_state.get("competencia_logada", "")
+    competencia_idx = competencias.index(competencia_atual) if competencia_atual in competencias else 0
 
-    cliente_atual = next(cliente for cliente in config["clientes"] if cliente["empresa"] == empresa)
-    competencia = st.sidebar.selectbox("Competencia", cliente_atual["competencias"])
-
-    senha = st.sidebar.text_input("Senha demonstrativa", type="password")
+    st.sidebar.text_input("Empresa", value=empresa, disabled=True)
+    competencia = st.sidebar.selectbox("Competência", competencias, index=competencia_idx)
+    st.session_state.competencia_logada = competencia
     st.sidebar.divider()
-    st.sidebar.info("Senhas demo: `demo123` ou `cliente456` conforme a empresa selecionada.")
-    return empresa, competencia, senha
+    st.sidebar.success("Acesso liberado")
+    st.sidebar.button("Sair", use_container_width=True, on_click=logout)
+    return empresa, competencia
 
 
 def filtrar_dados(df: pd.DataFrame, empresa: str, competencia: str) -> pd.DataFrame:
@@ -614,22 +742,19 @@ def aba_resumo(df: pd.DataFrame, empresa: str, competencia: str) -> None:
 def main() -> None:
     configurar_pagina()
     config = carregar_config()
+    inicializar_sessao()
 
-    empresa, competencia, senha = sidebar_filtros(config)
-
-    if not validar_login(config, empresa, senha):
-        mostrar_cabecalho(empresa, competencia, "Aguardando senha", "pendente")
-        st.divider()
-        st.warning("Informe a senha demonstrativa correta na barra lateral para acessar os dados.")
+    if not st.session_state.autenticado:
+        tela_login(config)
         st.stop()
+
+    empresa, competencia = sidebar_filtros(config)
 
     df = carregar_dados()
     df_filtrado = filtrar_dados(df, empresa, competencia)
     status_geral, status_tipo = status_geral_competencia(df_filtrado)
 
     mostrar_cabecalho(empresa, competencia, status_geral, status_tipo)
-
-    st.sidebar.success("Acesso liberado")
 
     if df_filtrado.empty:
         st.info("Nao ha dados demonstrativos para a empresa e competencia selecionadas.")
