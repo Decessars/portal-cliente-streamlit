@@ -770,6 +770,22 @@ def indice_padrao_sem_novo(opcoes: list[str]) -> int:
     return 0
 
 
+def campo_opcao_nova(
+    container: object,
+    label: str,
+    opcoes: list[str],
+    label_novo: str,
+    key_prefix: str,
+    index: int | None = None,
+) -> tuple[str, str]:
+    indice = indice_padrao_sem_novo(opcoes) if index is None else index
+    selecao = container.selectbox(label, opcoes, index=indice, key=f"{key_prefix}_selecao")
+    texto_novo = ""
+    if selecao == OPCAO_NOVO:
+        texto_novo = container.text_input(label_novo, key=f"{key_prefix}_novo")
+    return selecao, texto_novo
+
+
 def gerar_modelo_importacao_csv() -> bytes:
     exemplo = pd.DataFrame(
         [
@@ -1488,20 +1504,38 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     opcoes_tipo = opcoes_com_novo(opcoes_tipo_conta_com_historico(df))
     opcoes_descricao = opcoes_com_novo(opcoes_com_historico(df, "descricao", SUGESTOES_DESCRICAO))
     opcoes_fornecedor = opcoes_com_novo(opcoes_com_historico(df, "fornecedor_cliente", SUGESTOES_FORNECEDOR))
-    with st.form("form_conta_a_pagar", clear_on_submit=True):
-        c1, c2 = st.columns(2)
-        descricao_sel = c1.selectbox("Descricao", opcoes_descricao, index=0)
-        fornecedor_sel = c2.selectbox("Fornecedor", opcoes_fornecedor, index=0)
-        descricao_nova = c1.text_input("Digite a nova descricao") if descricao_sel == OPCAO_NOVO else ""
-        fornecedor_novo = c2.text_input("Digite o novo fornecedor") if fornecedor_sel == OPCAO_NOVO else ""
 
+    c1, c2 = st.columns(2)
+    descricao_sel, descricao_nova = campo_opcao_nova(
+        c1,
+        "Descricao",
+        opcoes_descricao,
+        "Digite a nova descricao",
+        "inclusao_descricao",
+        index=0,
+    )
+    fornecedor_sel, fornecedor_novo = campo_opcao_nova(
+        c2,
+        "Fornecedor",
+        opcoes_fornecedor,
+        "Digite o novo fornecedor",
+        "inclusao_fornecedor",
+        index=0,
+    )
+    tipo_conta_sel, tipo_conta_novo = campo_opcao_nova(
+        st,
+        "Tipo de conta",
+        opcoes_tipo,
+        "Digite o novo tipo de conta",
+        "inclusao_tipo_conta",
+    )
+
+    with st.form("form_conta_a_pagar", clear_on_submit=True):
         c3, c4, c5 = st.columns([1, 1, 1])
         vencimento = c3.date_input("Vencimento")
         valor = c4.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
         status = c5.selectbox("Status", ["aberto", "pendente", "vencido"])
 
-        tipo_conta_sel = st.selectbox("Tipo de conta", opcoes_tipo, index=indice_padrao_sem_novo(opcoes_tipo))
-        tipo_conta_novo = st.text_input("Digite o novo tipo de conta") if tipo_conta_sel == OPCAO_NOVO else ""
         observacao = st.text_area("Descricao / observacao livre", height=88)
         c6, c7 = st.columns([1, 1])
         anexo = c6.file_uploader("Anexo", type=["pdf", "png", "jpg", "jpeg", "xml", "csv", "xlsx"])
@@ -1617,6 +1651,15 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
         f"{formatar_moeda_br(float(linha.get('valor', 0) or 0))}"
     )
 
+    tipo_conta_sel, tipo_conta_novo = campo_opcao_nova(
+        st,
+        "Tipo de conta",
+        opcoes_tipo,
+        "Digite o novo tipo de conta",
+        f"{key_prefix}_tipo_conta",
+        index=tipo_idx,
+    )
+
     with st.form(f"{key_prefix}_form_editar_conta"):
         c1, c2 = st.columns(2)
         descricao = c1.text_input("Descricao", value=str(linha.get("descricao", "")))
@@ -1629,8 +1672,6 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
         status_atual = str(linha.get("status", "aberto")).lower()
         status = c5.selectbox("Status", status_opcoes, index=status_opcoes.index(status_atual) if status_atual in status_opcoes else 0)
 
-        tipo_conta_sel = st.selectbox("Tipo de conta", opcoes_tipo, index=tipo_idx)
-        tipo_conta_novo = st.text_input("Digite o novo tipo de conta") if tipo_conta_sel == OPCAO_NOVO else ""
         observacao = st.text_area(
             "Descricao / observacao livre",
             value=str(linha.get("observacao", "") or "").strip(),
