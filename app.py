@@ -1584,6 +1584,10 @@ def selecionar_conta_para_edicao(indice: int) -> None:
     st.session_state.conta_edicao_indice = indice
 
 
+def selecionar_manutencao(secao: str) -> None:
+    st.session_state.manutencao_ativa = secao
+
+
 def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### + Incluir conta a pagar")
     st.caption("A inclusao fica registrada com data, hora e usuario logado.")
@@ -1949,13 +1953,24 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
     st.divider()
     st.markdown("### Manutencao")
-    with st.expander("➕ Incluir nova conta a pagar", expanded=False):
+
+    st.session_state.setdefault("manutencao_ativa", "")
+    a1, a2, a3 = st.columns([1, 1, 1], gap="small")
+    a1.button("➕", help="Incluir nova conta a pagar", key="btn_manutencao_incluir", on_click=selecionar_manutencao, args=("incluir",))
+    a1.caption("Incluir")
+    a2.button("📥", help="Importar contas em massa por CSV", key="btn_manutencao_importar", on_click=selecionar_manutencao, args=("importar",))
+    a2.caption("Importar")
+    a3.button("🗑️", help="Excluir conta a pagar", key="btn_manutencao_excluir", on_click=selecionar_manutencao, args=("excluir",))
+    a3.caption("Excluir")
+
+    if st.session_state.manutencao_ativa == "incluir":
+        st.markdown("#### ➕ Incluir nova conta a pagar")
         formulario_inclusao(df, empresa, usuario)
-
-    with st.expander("📥 Importar contas em massa por CSV", expanded=False):
+    elif st.session_state.manutencao_ativa == "importar":
+        st.markdown("#### 📥 Importar contas em massa por CSV")
         importacao_massa_contas(df, empresa, usuario)
-
-    with st.expander("🗑️ Excluir conta a pagar", expanded=False):
+    elif st.session_state.manutencao_ativa == "excluir":
+        st.markdown("#### 🗑️ Excluir conta a pagar")
         area_exclusao(df, contas, empresa, usuario)
 
 def main() -> None:
