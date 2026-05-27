@@ -1,26 +1,25 @@
 {
+  "usuarios": [
+    {
+      "usuario": "DMLIMA",
+      "senha": "123456",
+      "empresas": [
+        "MHLOG",
+        "MH BRASIL"
+      ]
+    },
+    {
+      "usuario": "VICTOR",
+      "senha": "123456",
+      "empresas": [
+        "MHLOG",
+        "MH BRASIL"
+      ]
+    }
+  ],
   "clientes": [
     {
-      "empresa": "DMLIMA",
-      "senha": "123456",
-      "competencias": [
-        "2026-01",
-        "2026-02",
-        "2026-03"
-      ]
-    },
-    {
-      "empresa": "VICTOR",
-      "senha": "123456",
-      "competencias": [
-        "2026-01",
-        "2026-02",
-        "2026-03"
-      ]
-    },
-    {
       "empresa": "MHLOG",
-      "senha": "123456",
       "competencias": [
         "2026-01",
         "2026-02",
@@ -29,7 +28,6 @@
     },
     {
       "empresa": "MH BRASIL",
-      "senha": "123456",
       "competencias": [
         "2026-01",
         "2026-02",

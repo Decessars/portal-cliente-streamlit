@@ -15,6 +15,8 @@ Nesta versão, a função principal é **Contas a Pagar**:
 
 O app não usa banco de dados. As alterações manuais são gravadas em `data/dados_portal.csv`, arquivo ignorado pelo Git para evitar envio acidental de dados operacionais.
 
+As bases operacionais atuais ficam separadas por empresa em `data/empresas/<EMPRESA>/dados_portal.csv`. O painel e as telas sao iguais para todas as empresas, mas cada empresa le e grava seu proprio arquivo.
+
 ## Como Rodar Localmente
 
 ```bash
@@ -41,9 +43,9 @@ Use estes acessos demonstrativos para testar:
 ```text
 DMLIMA / 123456
 VICTOR / 123456
-MHLOG  / 123456
-MH BRASIL / 123456
 ```
+
+Depois do login, o portal exibe o dashboard por empresa. `MHLOG` e `MH BRASIL` sao empresas/clientes, nao usuarios de acesso.
 
 ## Publicação No Streamlit Community Cloud
 
@@ -84,6 +86,7 @@ portal_cliente_streamlit/
 Estes arquivos podem ser criados em uso local, mas não devem ser enviados ao GitHub:
 
 - `data/dados_portal.csv`
+- `data/empresas/`
 - `data/anexos/`
 - `.streamlit/secrets.toml`
 

@@ -15,7 +15,7 @@ BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 ASSETS_DIR = BASE_DIR / "assets"
 ANEXOS_DIR = DATA_DIR / "anexos"
-PORTAL_CSV_PATH = DATA_DIR / "dados_portal.csv"
+EMPRESAS_DATA_DIR = DATA_DIR / "empresas"
 CSV_PATH = DATA_DIR / "dados_demo.csv"
 XLSX_PATH = DATA_DIR / "dados_demo.xlsx"
 CONFIG_PATH = BASE_DIR / "config_clientes.json"
@@ -238,6 +238,23 @@ def configurar_pagina() -> None:
                 font-size: 0.82rem;
                 font-weight: 800;
             }}
+            .empresa-card {{
+                border: 1px solid var(--mh-border);
+                border-radius: 8px;
+                background: var(--mh-panel);
+                box-shadow: 0 8px 24px rgba(23, 51, 38, 0.06);
+                padding: 1rem;
+                min-height: 9rem;
+            }}
+            .empresa-card h3 {{
+                margin: 0 0 0.5rem;
+                font-size: 1.15rem;
+            }}
+            .empresa-card p {{
+                margin: 0.2rem 0;
+                color: var(--mh-muted);
+                font-size: 0.9rem;
+            }}
             .section-panel {{
                 border: 1px solid var(--mh-border);
                 border-radius: 8px;
@@ -345,15 +362,40 @@ def mostrar_cabecalho(empresa: str, competencia: str, status_geral: str, status_
 
 def criar_config_demo() -> dict:
     config = {
+        "usuarios": [
+            {"usuario": "DMLIMA", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "VICTOR", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
+        ],
         "clientes": [
-            {"empresa": "DMLIMA", "senha": "123456", "competencias": ["2026-01", "2026-02", "2026-03"]},
-            {"empresa": "VICTOR", "senha": "123456", "competencias": ["2026-01", "2026-02", "2026-03"]},
-            {"empresa": "MHLOG", "senha": "123456", "competencias": ["2026-01", "2026-02", "2026-03"]},
-            {"empresa": "MH BRASIL", "senha": "123456", "competencias": ["2026-01", "2026-02", "2026-03"]},
+            {"empresa": "MHLOG", "competencias": ["2026-01", "2026-02", "2026-03"]},
+            {"empresa": "MH BRASIL", "competencias": ["2026-01", "2026-02", "2026-03"]},
         ]
     }
     CONFIG_PATH.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
     return config
+
+
+def normalizar_config(config: dict) -> dict:
+    clientes = config.get("clientes", [])
+    empresas = [cliente.get("empresa", "") for cliente in clientes if cliente.get("empresa")]
+    usuarios = config.get("usuarios", [])
+
+    if not usuarios:
+        usuarios = [
+            {
+                "usuario": item.get("empresa", ""),
+                "senha": item.get("senha", ""),
+                "empresas": empresas,
+            }
+            for item in clientes
+            if item.get("senha")
+        ]
+
+    for cliente in clientes:
+        cliente.pop("senha", None)
+        cliente.setdefault("competencias", ["2026-01", "2026-02", "2026-03"])
+
+    return {"usuarios": usuarios, "clientes": clientes}
 
 
 def carregar_config() -> dict:
@@ -361,16 +403,11 @@ def carregar_config() -> dict:
         return criar_config_demo()
 
     with CONFIG_PATH.open("r", encoding="utf-8") as arquivo:
-        return json.load(arquivo)
+        return normalizar_config(json.load(arquivo))
 
 
 def dados_demo() -> pd.DataFrame:
     registros = [
-        ["DMLIMA", "2026-01", "conta_a_pagar", "Aluguel da sede", "Imobiliaria Central", "2026-01-10", "", 3200.00, "aberto", "Administrativo", "Pagamento recorrente mensal", "AP-DML-001", "2.1.5.01.001", "SALARIOS E ORDENADOS A PAGAR", "", "", "", "", "", "", True],
-        ["DMLIMA", "2026-01", "conta_a_pagar", "DAS Simples Nacional", "Receita Federal", "2026-01-20", "", 1480.00, "pendente", "Tributos", "Guia em preparacao", "IMP-DML-001", "2.1.4.01.015", "SIMPLES NACIONAL A RECOLHER", "", "", "", "", "", "", True],
-        ["DMLIMA", "2026-02", "conta_a_pagar", "Licenca de software", "SaaS Financeiro", "2026-02-12", "", 590.00, "aberto", "Tecnologia", "Renovacao mensal", "AP-DML-002", "", "", "", "", "", "", "", "", True],
-        ["VICTOR", "2026-01", "conta_a_pagar", "Compra de mercadorias", "Distribuidora Prime", "2026-01-22", "", 6900.00, "aberto", "Estoque", "Boleto aguardando aprovacao", "AP-VIC-001", "", "", "", "", "", "", "", "", True],
-        ["VICTOR", "2026-02", "conta_a_pagar", "Manutencao loja", "Servicos Prediais", "2026-02-16", "", 1450.00, "aberto", "Operacional", "Servico aprovado", "AP-VIC-002", "", "", "", "", "", "", "", "", True],
         ["MHLOG", "2026-01", "conta_a_pagar", "Energia eletrica", "Companhia de Energia", "2026-01-18", "", 860.45, "vencido", "Despesas fixas", "Conferir segunda via", "AP-MHL-001", "", "", "", "", "", "", "", "", True],
         ["MHLOG", "2026-01", "conta_a_pagar", "Honorarios contabeis", "Escritorio Contabil", "2026-01-05", "", 980.00, "aberto", "Contabilidade", "Pagamento previsto", "AP-MHL-002", "2.1.6.02.001", "HONORARIOS CONTABEIS", "", "", "", "", "", "", True],
         ["MHLOG", "2026-02", "conta_a_pagar", "Manutencao de frota", "Oficina Parceira", "2026-02-19", "", 2250.00, "aberto", "Operacional", "Servico aprovado", "AP-MHL-003", "", "", "", "", "", "", "", "", True],
@@ -394,17 +431,7 @@ def normalizar_ativo(valor: object) -> bool:
     return texto not in {"false", "0", "nao", "não", "n", "excluido", "excluído"}
 
 
-def carregar_dados() -> pd.DataFrame:
-    """Carrega dados do portal, dados demo ou recria a base demonstrativa."""
-    if PORTAL_CSV_PATH.exists():
-        df = pd.read_csv(PORTAL_CSV_PATH)
-    elif CSV_PATH.exists():
-        df = pd.read_csv(CSV_PATH)
-    elif XLSX_PATH.exists():
-        df = pd.read_excel(XLSX_PATH)
-    else:
-        df = criar_dados_demo()
-
+def normalizar_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     for coluna in COLUNAS_DADOS:
         if coluna not in df.columns:
             df[coluna] = True if coluna == "ativo" else ""
@@ -417,12 +444,53 @@ def carregar_dados() -> pd.DataFrame:
     return df
 
 
-def salvar_dados(df: pd.DataFrame) -> Path:
-    """Salva no CSV operacional do portal, preservando dados demo separados."""
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+def slug_empresa(empresa: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", empresa.strip().upper()).strip("_")
+    return slug or "EMPRESA"
+
+
+def pasta_empresa(empresa: str) -> Path:
+    return EMPRESAS_DATA_DIR / slug_empresa(empresa)
+
+
+def caminho_dados_empresa(empresa: str) -> Path:
+    return pasta_empresa(empresa) / "dados_portal.csv"
+
+
+def carregar_base_demo() -> pd.DataFrame:
+    if CSV_PATH.exists():
+        return pd.read_csv(CSV_PATH)
+    if XLSX_PATH.exists():
+        return pd.read_excel(XLSX_PATH)
+    return criar_dados_demo()
+
+
+def carregar_dados_empresa(empresa: str) -> pd.DataFrame:
+    """Carrega a base operacional isolada de uma empresa."""
+    caminho = caminho_dados_empresa(empresa)
+    if caminho.exists():
+        df = pd.read_csv(caminho)
+    else:
+        demo = carregar_base_demo()
+        df = demo.loc[demo["empresa"].astype(str) == empresa].copy()
+        salvar_dados_empresa(normalizar_dataframe(df), empresa)
+    return normalizar_dataframe(df)
+
+
+def carregar_dados_empresas(config: dict) -> pd.DataFrame:
+    frames = [carregar_dados_empresa(cliente["empresa"]) for cliente in config["clientes"]]
+    if not frames:
+        return normalizar_dataframe(pd.DataFrame(columns=COLUNAS_DADOS))
+    return normalizar_dataframe(pd.concat(frames, ignore_index=True))
+
+
+def salvar_dados_empresa(df: pd.DataFrame, empresa: str) -> Path:
+    """Salva no arquivo operacional da empresa selecionada."""
+    caminho = caminho_dados_empresa(empresa)
+    caminho.parent.mkdir(parents=True, exist_ok=True)
     dados = df[[coluna for coluna in COLUNAS_DADOS if coluna in df.columns]].copy()
-    dados.to_csv(PORTAL_CSV_PATH, index=False, encoding="utf-8-sig")
-    return PORTAL_CSV_PATH
+    dados.to_csv(caminho, index=False, encoding="utf-8-sig")
+    return caminho
 
 
 def formatar_moeda_br(valor: float) -> str:
@@ -445,8 +513,8 @@ def gerar_csv_download(df: pd.DataFrame) -> bytes:
     return df[colunas].to_csv(index=False).encode("utf-8-sig")
 
 
-def validar_login(config: dict, empresa: str, senha_digitada: str) -> bool:
-    senha_configurada = obter_senha_cliente(config, empresa)
+def validar_login(config: dict, usuario: str, senha_digitada: str) -> bool:
+    senha_configurada = obter_senha_usuario(config, usuario)
     return bool(senha_configurada and senha_digitada and senha_digitada == senha_configurada)
 
 
@@ -454,29 +522,44 @@ def obter_cliente(config: dict, empresa: str) -> dict:
     return next((item for item in config["clientes"] if item["empresa"] == empresa), {})
 
 
-def obter_senha_cliente(config: dict, empresa: str) -> str:
-    """Lê senha do Streamlit Secrets quando existir; senão usa o JSON demo local."""
+def obter_usuario(config: dict, usuario: str) -> dict:
+    usuario_normalizado = usuario.strip().upper()
+    return next(
+        (item for item in config["usuarios"] if item.get("usuario", "").strip().upper() == usuario_normalizado),
+        {},
+    )
+
+
+def obter_senha_usuario(config: dict, usuario: str) -> str:
+    usuario_config = obter_usuario(config, usuario)
+    usuario_chave = usuario_config.get("usuario", usuario).strip().upper()
     try:
-        clientes_secret = st.secrets.get("clientes", {})
-        if empresa in clientes_secret:
-            return str(clientes_secret[empresa])
+        usuarios_secret = st.secrets.get("usuarios", {})
+        if usuario_chave in usuarios_secret:
+            return str(usuarios_secret[usuario_chave])
     except Exception:
         pass
 
-    return str(obter_cliente(config, empresa).get("senha", ""))
+    return str(usuario_config.get("senha", ""))
+
+
+def empresas_do_usuario(config: dict, usuario: str) -> list[str]:
+    usuario_config = obter_usuario(config, usuario)
+    empresas_liberadas = usuario_config.get("empresas", [])
+    empresas_configuradas = [cliente["empresa"] for cliente in config["clientes"]]
+    if not empresas_liberadas:
+        return empresas_configuradas
+    return [empresa for empresa in empresas_configuradas if empresa in empresas_liberadas]
 
 
 def inicializar_sessao() -> None:
     st.session_state.setdefault("autenticado", False)
+    st.session_state.setdefault("usuario_logado", "")
     st.session_state.setdefault("empresa_logada", "")
     st.session_state.setdefault("competencia_logada", "")
 
 
 def tela_login(config: dict) -> None:
-    empresas = [cliente["empresa"] for cliente in config["clientes"]]
-    empresa_padrao = st.session_state.get("empresa_login", empresas[0] if empresas else "")
-    empresa_idx = empresas.index(empresa_padrao) if empresa_padrao in empresas else 0
-
     logo_b64 = imagem_base64(LOGO_FULL_PATH)
     logo_html = (
         f'<img src="data:image/png;base64,{logo_b64}" alt="MH LOG">'
@@ -558,6 +641,144 @@ def filtrar_contas_a_pagar_abertas(df: pd.DataFrame, empresa: str, competencia: 
     status_abertos = dados["status"].astype(str).str.lower().isin(["aberto", "pendente", "vencido"])
     filtro = (dados["tipo"] == "conta_a_pagar") & status_abertos & dados["ativo"]
     return dados.loc[filtro].copy()
+
+
+def tela_login(config: dict) -> None:
+    logo_b64 = imagem_base64(LOGO_FULL_PATH)
+    logo_html = (
+        f'<img src="data:image/png;base64,{logo_b64}" alt="MH LOG">'
+        if logo_b64
+        else '<strong style="color:var(--mh-accent);font-size:1.5rem;">MH LOG</strong>'
+    )
+
+    st.write("")
+    _, col_login, _ = st.columns([1, 1.05, 1])
+    with col_login:
+        st.markdown(
+            f"""
+            <div class="login-logo">{logo_html}</div>
+            <section class="login-panel">
+                <span class="login-badge">Acesso restrito</span>
+                <h2>Portal Contabil do Cliente</h2>
+                <p>Contas a pagar liberadas pelo escritorio.</p>
+                <p>Use seu usuario e senha de acesso.</p>
+            </section>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.write("")
+        with st.container(border=True):
+            st.subheader("Entrar no portal")
+            st.caption("Informe seus dados para continuar.")
+            with st.form("form_login", clear_on_submit=False):
+                usuario = st.text_input("Usuario", value=st.session_state.get("usuario_login", ""))
+                senha = st.text_input("Senha de acesso", type="password")
+                entrar = st.form_submit_button("Entrar", use_container_width=True)
+
+            if entrar:
+                usuario = usuario.strip().upper()
+                empresas_liberadas = empresas_do_usuario(config, usuario)
+                if validar_login(config, usuario, senha) and empresas_liberadas:
+                    st.session_state.autenticado = True
+                    st.session_state.usuario_logado = usuario
+                    st.session_state.usuario_login = usuario
+                    st.session_state.empresa_logada = ""
+                    st.session_state.competencia_logada = ""
+                    st.rerun()
+                else:
+                    st.error("Usuario ou senha invalida.")
+
+
+def logout() -> None:
+    st.session_state.autenticado = False
+    st.session_state.usuario_logado = ""
+    st.session_state.empresa_logada = ""
+    st.session_state.competencia_logada = ""
+    st.rerun()
+
+
+def voltar_dashboard_empresas() -> None:
+    st.session_state.empresa_logada = ""
+    st.session_state.competencia_logada = ""
+    st.rerun()
+
+
+def selecionar_empresa(empresa: str, config: dict) -> None:
+    cliente_atual = obter_cliente(config, empresa)
+    competencias = cliente_atual.get("competencias", [])
+    st.session_state.empresa_logada = empresa
+    st.session_state.competencia_logada = competencias[0] if competencias else ""
+    st.rerun()
+
+
+def sidebar_filtros(config: dict) -> tuple[str, str, str]:
+    if LOGO_FULL_PATH.exists():
+        st.sidebar.image(str(LOGO_FULL_PATH), width=210)
+    st.sidebar.title("Sessao")
+
+    usuario = st.session_state.get("usuario_logado", "")
+    empresa = st.session_state.get("empresa_logada", "")
+    cliente_atual = obter_cliente(config, empresa)
+    competencias = cliente_atual.get("competencias", [])
+    competencia_atual = st.session_state.get("competencia_logada", "")
+    competencia_idx = competencias.index(competencia_atual) if competencia_atual in competencias else 0
+
+    st.sidebar.text_input("Usuario", value=usuario, disabled=True)
+    st.sidebar.text_input("Empresa", value=empresa, disabled=True)
+    competencia = st.sidebar.selectbox("Competencia", competencias, index=competencia_idx)
+    st.session_state.competencia_logada = competencia
+    st.sidebar.divider()
+    st.sidebar.success("Acesso liberado")
+    st.sidebar.button("Trocar empresa", use_container_width=True, on_click=voltar_dashboard_empresas)
+    st.sidebar.button("Sair", use_container_width=True, on_click=logout)
+    return empresa, competencia, usuario
+
+
+def dashboard_empresas(config: dict, df: pd.DataFrame) -> None:
+    usuario = st.session_state.get("usuario_logado", "")
+    empresas = empresas_do_usuario(config, usuario)
+
+    if LOGO_FULL_PATH.exists():
+        st.sidebar.image(str(LOGO_FULL_PATH), width=210)
+    st.sidebar.title("Sessao")
+    st.sidebar.text_input("Usuario", value=usuario, disabled=True)
+    st.sidebar.button("Sair", use_container_width=True, on_click=logout)
+
+    st.title("Dashboard por empresa")
+    st.caption("Escolha uma empresa para abrir as contas a pagar e os indicadores dela.")
+
+    cols = st.columns(2)
+    for indice, empresa in enumerate(empresas):
+        contas_empresa = df.loc[
+            (df["empresa"] == empresa)
+            & (df["tipo"] == "conta_a_pagar")
+            & df["status"].astype(str).str.lower().isin(["aberto", "pendente", "vencido"])
+            & df["ativo"]
+        ]
+        total = contas_empresa["valor"].sum()
+        vencidas = int((contas_empresa["status"].astype(str).str.lower() == "vencido").sum())
+        competencias = sorted(contas_empresa["competencia"].dropna().astype(str).unique())
+
+        with cols[indice % 2]:
+            st.markdown(
+                f"""
+                <div class="empresa-card">
+                    <h3>{escape(empresa)}</h3>
+                    <p>Total em aberto: <strong>{escape(formatar_moeda_br(total))}</strong></p>
+                    <p>Contas abertas: <strong>{len(contas_empresa)}</strong></p>
+                    <p>Vencidas: <strong>{vencidas}</strong></p>
+                    <p>Competencias: <strong>{escape(", ".join(competencias) or "-")}</strong></p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.button(
+                f"Abrir {empresa}",
+                key=f"abrir_empresa_{empresa}",
+                use_container_width=True,
+                on_click=selecionar_empresa,
+                args=(empresa, config),
+            )
 
 
 def status_geral_contas(df: pd.DataFrame) -> tuple[str, str]:
@@ -747,12 +968,12 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, competencia: str, usuari
         "anexo": anexo,
     }
     df_atualizado = adicionar_conta_a_pagar(df, empresa, competencia, usuario, dados_formulario)
-    salvar_dados(df_atualizado)
+    salvar_dados_empresa(df_atualizado, empresa)
     st.success("Conta a pagar incluída com sucesso.")
     st.rerun()
 
 
-def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, usuario: str) -> None:
+def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### 🗑️ Excluir conta a pagar")
     st.caption("A exclusão mantém auditoria no arquivo, marcando o registro como inativo.")
 
@@ -779,7 +1000,7 @@ def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, usuario: str) -> None:
             return
 
         df_atualizado = excluir_conta_a_pagar(df, opcoes[selecionada], usuario)
-        salvar_dados(df_atualizado)
+        salvar_dados_empresa(df_atualizado, empresa)
         st.success("Conta a pagar excluída da lista ativa.")
         st.rerun()
 
@@ -826,7 +1047,7 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, competencia: str, usua
 
     st.divider()
     with st.expander("🗑️ Excluir conta a pagar", expanded=False):
-        area_exclusao(df, contas, usuario)
+        area_exclusao(df, contas, empresa, usuario)
 
 
 def main() -> None:
@@ -838,13 +1059,17 @@ def main() -> None:
         tela_login(config)
         st.stop()
 
-    empresa, competencia = sidebar_filtros(config)
-    df = carregar_dados()
+    if not st.session_state.get("empresa_logada"):
+        dashboard_empresas(config, carregar_dados_empresas(config))
+        st.stop()
+
+    empresa, competencia, usuario = sidebar_filtros(config)
+    df = carregar_dados_empresa(empresa)
     contas = filtrar_contas_a_pagar_abertas(df, empresa, competencia)
     status_geral, status_tipo = status_geral_contas(contas)
 
     mostrar_cabecalho(empresa, competencia, status_geral, status_tipo)
-    pagina_contas_a_pagar(df, empresa, competencia, empresa)
+    pagina_contas_a_pagar(df, empresa, competencia, usuario)
 
 
 if __name__ == "__main__":
