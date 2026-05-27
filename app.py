@@ -1262,8 +1262,42 @@ def salvar_anexo(uploaded_file: object, empresa: str, documento: str) -> tuple[s
 
 
 def obter_tipo_conta(selecao: str) -> tuple[str, str]:
-    codigo = selecao.split(" - ", 1)[0].strip()
-    return codigo, TIPOS_CONTA_PAGAR.get(codigo, "")
+    texto = str(selecao or "").strip()
+    if " - " not in texto:
+        return "", texto
+
+    codigo, nome = texto.split(" - ", 1)
+    codigo = codigo.strip()
+    return codigo, nome.strip() or TIPOS_CONTA_PAGAR.get(codigo, "")
+
+
+def opcoes_tipo_conta_com_historico(df: pd.DataFrame) -> list[str]:
+    opcoes = []
+    if {"tipo_conta_codigo", "tipo_conta_nome"}.issubset(df.columns):
+        for _, linha in df[["tipo_conta_codigo", "tipo_conta_nome"]].dropna(how="all").iterrows():
+            codigo = str(linha.get("tipo_conta_codigo", "") or "").strip()
+            nome = str(linha.get("tipo_conta_nome", "") or "").strip()
+            if codigo and nome:
+                opcoes.append(f"{codigo} - {nome}")
+            elif nome:
+                opcoes.append(nome)
+            elif codigo:
+                opcoes.append(codigo)
+
+    opcoes.extend(f"{codigo} - {nome}" for codigo, nome in TIPOS_CONTA_PAGAR.items())
+    unicas = []
+    chaves_vistas = set()
+    for opcao in opcoes:
+        texto = str(opcao or "").strip()
+        if not texto:
+            continue
+        chave = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii").casefold()
+        chave = " ".join(chave.split())
+        if chave in chaves_vistas:
+            continue
+        chaves_vistas.add(chave)
+        unicas.append(texto)
+    return unicas
 
 
 def adicionar_conta_a_pagar(
@@ -1385,37 +1419,26 @@ def selecionar_conta_para_edicao(indice: int) -> None:
 
 
 def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
-    st.markdown("### ➕ Incluir conta a pagar")
-    st.caption("A inclusão fica registrada com data, hora e usuário logado.")
+    st.markdown("### + Incluir conta a pagar")
+    st.caption("A inclusao fica registrada com data, hora e usuario logado.")
 
-    opcoes_tipo = [f"{codigo} - {nome}" for codigo, nome in TIPOS_CONTA_PAGAR.items()]
+    opcoes_tipo = opcoes_tipo_conta_com_historico(df) + ["Outro"]
     opcoes_descricao = opcoes_com_historico(df, "descricao", SUGESTOES_DESCRICAO) + ["Outro"]
     opcoes_fornecedor = opcoes_com_historico(df, "fornecedor_cliente", SUGESTOES_FORNECEDOR) + ["Outro"]
-    opcoes_categoria = opcoes_com_historico(df, "categoria", SUGESTOES_CATEGORIA) + ["Outro"]
     with st.form("form_conta_a_pagar", clear_on_submit=True):
         c1, c2 = st.columns(2)
-        descricao_sel = c1.selectbox("Descrição", opcoes_descricao, index=0)
+        descricao_sel = c1.selectbox("Descricao", opcoes_descricao, index=0)
         fornecedor_sel = c2.selectbox("Fornecedor", opcoes_fornecedor, index=0)
-        descricao_outro = c1.text_input("Descrição nova", disabled=descricao_sel != "Outro")
-        fornecedor_outro = c2.text_input("Fornecedor novo", disabled=fornecedor_sel != "Outro")
+        descricao_outro = c1.text_input("Descricao nova") if descricao_sel == "Outro" else ""
+        fornecedor_outro = c2.text_input("Fornecedor novo") if fornecedor_sel == "Outro" else ""
 
         c3, c4, c5 = st.columns([1, 1, 1])
         vencimento = c3.date_input("Vencimento")
         valor = c4.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
         status = c5.selectbox("Status", ["aberto", "pendente", "vencido"])
 
-        tipo_conta = st.selectbox("Tipo de conta", opcoes_tipo)
-        c6, c7 = st.columns(2)
-        categoria_sel = c6.selectbox("Categoria", opcoes_categoria, index=0)
-        categoria_outro = c6.text_input("Categoria nova", disabled=categoria_sel != "Outro")
-        documento = c7.text_input("Documento / referência", placeholder="Ex.: NF-123, BOLETO-001")
-
-        observacao = st.text_area("Observação", height=80)
-        anexo = st.file_uploader(
-            "Anexo",
-            type=["pdf", "png", "jpg", "jpeg", "xlsx", "csv", "doc", "docx"],
-            help="Use para anexar boleto, nota fiscal, guia ou comprovante.",
-        )
+        tipo_conta_sel = st.selectbox("Tipo de conta", opcoes_tipo)
+        tipo_conta_outro = st.text_input("Tipo de conta novo") if tipo_conta_sel == "Outro" else ""
         enviar = st.form_submit_button("Salvar conta a pagar", use_container_width=True)
 
     if not enviar:
@@ -1423,13 +1446,14 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
     descricao = resolver_opcao_digitavel(descricao_sel, descricao_outro)
     fornecedor = resolver_opcao_digitavel(fornecedor_sel, fornecedor_outro)
-    categoria = resolver_opcao_digitavel(categoria_sel, categoria_outro)
+    tipo_conta = resolver_opcao_digitavel(tipo_conta_sel, tipo_conta_outro)
+    _, tipo_nome = obter_tipo_conta(tipo_conta)
 
-    if not descricao.strip() or not fornecedor.strip() or valor <= 0:
-        st.error("Preencha descrição, fornecedor e valor maior que zero.")
+    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor <= 0:
+        st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero.")
         return
 
-    documento_final = documento.strip() or f"AP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    documento_final = f"AP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     dados_formulario = {
         "descricao": descricao.strip(),
         "fornecedor": fornecedor.strip(),
@@ -1437,16 +1461,15 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         "valor": valor,
         "status": status,
         "tipo_conta": tipo_conta,
-        "categoria": categoria.strip(),
+        "categoria": tipo_nome.strip(),
         "documento": documento_final,
-        "observacao": observacao.strip(),
-        "anexo": anexo,
+        "observacao": "",
+        "anexo": None,
     }
     df_atualizado = adicionar_conta_a_pagar(df, empresa, usuario, dados_formulario)
     salvar_dados_empresa(df_atualizado, empresa)
-    st.success("Conta a pagar incluída com sucesso.")
+    st.success("Conta a pagar incluida com sucesso.")
     st.rerun()
-
 
 def importacao_massa_contas(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### Importar contas por CSV")
@@ -1523,17 +1546,19 @@ def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: s
     if pd.isna(vencimento_atual):
         vencimento_atual = pd.Timestamp(datetime.now().date())
 
-    opcoes_tipo = [f"{codigo} - {nome}" for codigo, nome in TIPOS_CONTA_PAGAR.items()]
-    opcoes_descricao = opcoes_com_historico(df, "descricao", SUGESTOES_DESCRICAO)
-    opcoes_fornecedor = opcoes_com_historico(df, "fornecedor_cliente", SUGESTOES_FORNECEDOR)
-    opcoes_categoria = opcoes_com_historico(df, "categoria", SUGESTOES_CATEGORIA)
-    tipo_atual = str(linha.get("tipo_conta_codigo", "")).strip()
-    tipo_rotulo = next((opcao for opcao in opcoes_tipo if opcao.startswith(f"{tipo_atual} - ")), opcoes_tipo[0])
+    opcoes_tipo = opcoes_tipo_conta_com_historico(df) + ["Outro"]
+    tipo_codigo_atual = str(linha.get("tipo_conta_codigo", "") or "").strip()
+    tipo_nome_atual = str(linha.get("tipo_conta_nome", "") or "").strip()
+    tipo_rotulo = f"{tipo_codigo_atual} - {tipo_nome_atual}" if tipo_codigo_atual and tipo_nome_atual else tipo_nome_atual
+    if not tipo_rotulo:
+        tipo_rotulo = opcoes_tipo[0]
+    if tipo_rotulo not in opcoes_tipo:
+        opcoes_tipo.insert(0, tipo_rotulo)
     tipo_idx = opcoes_tipo.index(tipo_rotulo)
 
     with st.form("form_editar_conta"):
         c1, c2 = st.columns(2)
-        descricao = c1.text_input("Descrição", value=str(linha.get("descricao", "")))
+        descricao = c1.text_input("Descricao", value=str(linha.get("descricao", "")))
         fornecedor = c2.text_input("Fornecedor", value=str(linha.get("fornecedor_cliente", "")))
 
         c3, c4, c5 = st.columns([1, 1, 1])
@@ -1543,18 +1568,17 @@ def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: s
         status_atual = str(linha.get("status", "aberto")).lower()
         status = c5.selectbox("Status", status_opcoes, index=status_opcoes.index(status_atual) if status_atual in status_opcoes else 0)
 
-        tipo_conta = st.selectbox("Tipo de conta", opcoes_tipo, index=tipo_idx)
-        c6, c7 = st.columns(2)
-        categoria = c6.text_input("Categoria", value=str(linha.get("categoria", "")))
-        documento = c7.text_input("Documento / referência", value=str(linha.get("documento", "")))
-        observacao = st.text_area("Observação", value=str(linha.get("observacao", "")), height=80)
-        salvar = st.form_submit_button("Salvar alterações", use_container_width=True)
+        tipo_conta_sel = st.selectbox("Tipo de conta", opcoes_tipo, index=tipo_idx)
+        tipo_conta_outro = st.text_input("Tipo de conta novo") if tipo_conta_sel == "Outro" else ""
+        salvar = st.form_submit_button("Salvar alteracoes", use_container_width=True)
 
     if not salvar:
         return
 
-    if not descricao.strip() or not fornecedor.strip() or valor <= 0:
-        st.error("Preencha descrição, fornecedor e valor maior que zero.")
+    tipo_conta = resolver_opcao_digitavel(tipo_conta_sel, tipo_conta_outro)
+    _, tipo_nome = obter_tipo_conta(tipo_conta)
+    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor <= 0:
+        st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero.")
         return
 
     dados_formulario = {
@@ -1564,9 +1588,9 @@ def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: s
         "valor": valor,
         "status": status,
         "tipo_conta": tipo_conta,
-        "categoria": categoria.strip(),
-        "documento": documento.strip() or f"AP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-        "observacao": observacao.strip(),
+        "categoria": tipo_nome.strip(),
+        "documento": str(linha.get("documento", "") or "").strip() or f"AP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+        "observacao": str(linha.get("observacao", "") or "").strip(),
     }
     try:
         df_atualizado = editar_conta_a_pagar(df, indice, usuario, dados_formulario)
@@ -1578,7 +1602,6 @@ def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: s
     st.session_state.pop("conta_edicao_indice", None)
     st.success("Conta a pagar atualizada com sucesso.")
     st.rerun()
-
 
 def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### 🗑️ Excluir conta a pagar")
