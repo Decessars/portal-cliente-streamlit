@@ -1,10 +1,19 @@
 # Portal Contábil do Cliente
 
-Aplicativo web gratuito em Streamlit para demonstrar um portal contábil do cliente, com login simples, filtros por empresa e competência, resumo financeiro, contas a pagar, contas pagas, receitas, impostos e relatórios.
+Aplicativo web em Streamlit para um portal contábil simples, separado do sistema principal `dominio_dmls_08.py`.
 
-O projeto usa apenas arquivos locais demonstrativos (`CSV` ou `XLSX`) e não usa banco de dados. Se o arquivo de dados não existir, o app cria automaticamente uma base demo em `data/dados_demo.csv`.
+Nesta versão, a função principal é **Contas a Pagar**:
 
-Para uma integração futura, o app procura primeiro `data/dados_portal.csv`. Esse arquivo pode ser gerado manualmente ou pelo módulo `exportador_portal.py`. Se ele não existir, o app usa `data/dados_demo.csv`.
+- login por usuário e senha;
+- seleção de competência após o login;
+- lista de contas em aberto;
+- inclusão manual de contas a pagar;
+- upload de anexos, como boletos, notas fiscais e guias;
+- exclusão lógica de contas, preservando auditoria;
+- registro de data/hora e usuário responsável pela inclusão ou exclusão;
+- tipos de conta baseados nos passivos monitorados no `dominio_dmls_08.py`.
+
+O app não usa banco de dados. As alterações manuais são gravadas em `data/dados_portal.csv`, arquivo ignorado pelo Git para evitar envio acidental de dados operacionais.
 
 ## Como Rodar Localmente
 
@@ -20,7 +29,7 @@ Depois acesse:
 http://localhost:8501
 ```
 
-No Windows, tambem ha dois atalhos na pasta do projeto:
+No Windows, também há dois atalhos na pasta do projeto:
 
 - `Iniciar Portal Local.bat`: inicia o Streamlit localmente.
 - `Abrir Portal Local.url`: abre `http://localhost:8501` no navegador.
@@ -38,15 +47,14 @@ MH BRASIL / 123456
 
 ## Publicação No Streamlit Community Cloud
 
-1. Crie um repositório no GitHub.
+1. Crie ou acesse o repositório no GitHub.
 2. Envie os arquivos desta pasta para o repositório.
 3. Acesse [Streamlit Community Cloud](https://streamlit.io/cloud).
-4. Clique em **New app**.
-5. Selecione o repositório e a branch.
-6. Em **Main file path**, informe `app.py`.
-7. Clique em **Deploy**.
+4. Clique em **Create app** ou **New app**.
+5. Selecione o repositório, a branch `main` e o arquivo principal `app.py`.
+6. Clique em **Deploy**.
 
-Se você publicar o projeto dentro de uma subpasta do repositório, informe o caminho completo, por exemplo:
+Se o app estiver dentro de uma subpasta do repositório, informe o caminho completo, por exemplo:
 
 ```text
 portal_cliente_streamlit/app.py
@@ -71,37 +79,18 @@ portal_cliente_streamlit/
     └── dados_demo.csv
 ```
 
-## Integração Futura
+## Arquivos Operacionais Locais
 
-O arquivo `exportador_portal.py` prepara a padronização dos dados que poderão vir de outro sistema no futuro. Ele não altera nem importa o sistema principal.
+Estes arquivos podem ser criados em uso local, mas não devem ser enviados ao GitHub:
 
-Funções disponíveis:
-
-- `normalizar_colunas_portal(df)`
-- `validar_dados_portal(df)`
-- `salvar_dados_portal(df, caminho_saida="data/dados_portal.csv")`
-- `gerar_dados_demo_portal()`
-- `exemplo_de_uso()`
-
-## Dados Demonstrativos
-
-O arquivo `data/dados_demo.csv` usa as colunas:
-
-- empresa
-- competencia
-- tipo
-- descricao
-- fornecedor_cliente
-- vencimento
-- pagamento_recebimento
-- valor
-- status
-- categoria
-- observacao
-- documento
+- `data/dados_portal.csv`
+- `data/anexos/`
+- `.streamlit/secrets.toml`
 
 ## Segurança
 
 Não suba dados reais sensíveis em repositório público.
 
-Não coloque senhas reais no GitHub. Use apenas senhas demonstrativas para testes locais. Em uma versão de produção, mova credenciais para `st.secrets` no Streamlit Community Cloud ou para outro mecanismo seguro de autenticação.
+Não coloque senhas reais no GitHub. Para produção, use `st.secrets` no Streamlit Community Cloud ou outro mecanismo seguro de autenticação.
+
+Os anexos salvos localmente no Streamlit Community Cloud podem ser temporários, porque a hospedagem gratuita não é um armazenamento permanente. Para uso real com clientes, o próximo passo é guardar anexos em serviço externo seguro, como Google Drive controlado, S3 ou banco com storage.

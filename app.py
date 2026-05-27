@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 import json
+import re
+from datetime import datetime
 from html import escape
 from pathlib import Path
 
@@ -12,15 +14,14 @@ import streamlit as st
 BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 ASSETS_DIR = BASE_DIR / "assets"
+ANEXOS_DIR = DATA_DIR / "anexos"
 PORTAL_CSV_PATH = DATA_DIR / "dados_portal.csv"
 CSV_PATH = DATA_DIR / "dados_demo.csv"
 XLSX_PATH = DATA_DIR / "dados_demo.xlsx"
 CONFIG_PATH = BASE_DIR / "config_clientes.json"
 LOGO_HEADER_PATH = ASSETS_DIR / "mh_log_logo_app_header.png"
-LOGO_ICON_PATH = ASSETS_DIR / "mh_log_logo_app_512.png"
 
 TEMA_MH = {
-    "name": "MH Verde Nevoa",
     "bg": "#f4faf5",
     "panel": "#ffffff",
     "panel_soft": "#e9f5ec",
@@ -31,12 +32,21 @@ TEMA_MH = {
     "danger": "#dc2626",
     "ok": "#15803d",
     "warning": "#b7791f",
-    "violet": "#4b8f65",
-    "teal": "#1f9d68",
     "border": "#c8ddce",
 }
 
-COLUNAS_DADOS = [
+# Tipos monitorados no dominio_dmls_08.py em CONTAS_PASSIVO_PAGAR_CONTROLADAS.
+TIPOS_CONTA_PAGAR = {
+    "2.1.4.01.003": "ISS A RECOLHER",
+    "2.1.4.01.006": "IMPOSTOS LUCRO REAL A RECOLHER",
+    "2.1.4.01.015": "SIMPLES NACIONAL A RECOLHER",
+    "2.1.5.01.001": "SALARIOS E ORDENADOS A PAGAR",
+    "2.1.5.02.001": "INSS A RECOLHER",
+    "2.1.5.02.002": "FGTS A RECOLHER",
+    "2.1.6.02.001": "HONORARIOS CONTABEIS",
+}
+
+COLUNAS_BASE = [
     "empresa",
     "competencia",
     "tipo",
@@ -50,6 +60,20 @@ COLUNAS_DADOS = [
     "observacao",
     "documento",
 ]
+
+COLUNAS_EXTRAS = [
+    "tipo_conta_codigo",
+    "tipo_conta_nome",
+    "anexo_nome",
+    "anexo_caminho",
+    "criado_em",
+    "criado_por",
+    "excluido_em",
+    "excluido_por",
+    "ativo",
+]
+
+COLUNAS_DADOS = COLUNAS_BASE + COLUNAS_EXTRAS
 
 
 def configurar_pagina() -> None:
@@ -84,10 +108,6 @@ def configurar_pagina() -> None:
             [data-testid="stSidebar"] {{
                 background: linear-gradient(180deg, #ffffff 0%, var(--mh-panel-soft) 100%);
                 border-right: 1px solid var(--mh-border);
-            }}
-            [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
-            [data-testid="stSidebar"] label {{
-                color: var(--mh-text);
             }}
             .main .block-container {{
                 padding-top: 1.25rem;
@@ -169,55 +189,8 @@ def configurar_pagina() -> None:
                 padding: 16px 18px;
                 box-shadow: 0 6px 18px rgba(23, 51, 38, 0.07);
             }}
-            [data-testid="stMetricLabel"] {{
-                color: var(--mh-muted);
-            }}
             [data-testid="stMetricValue"] {{
                 color: var(--mh-accent);
-            }}
-            .portal-card {{
-                border: 1px solid var(--mh-border);
-                border-radius: 8px;
-                padding: 16px;
-                background: var(--mh-panel);
-            }}
-            .small-muted {{
-                color: var(--mh-muted);
-                font-size: 0.9rem;
-            }}
-            .info-card {{
-                min-height: 11.5rem;
-                border: 1px solid var(--mh-border);
-                border-radius: 8px;
-                padding: 1rem;
-                background: var(--mh-panel);
-                box-shadow: 0 6px 18px rgba(23, 51, 38, 0.07);
-            }}
-            .info-card h4 {{
-                margin: 0 0 0.7rem;
-                color: var(--mh-text);
-                font-size: 1rem;
-            }}
-            .info-card p,
-            .info-card li {{
-                color: var(--mh-muted);
-                font-size: 0.9rem;
-                margin: 0.28rem 0;
-            }}
-            .info-card strong {{
-                color: var(--mh-text);
-            }}
-            .card-ok {{
-                border-left: 5px solid var(--mh-ok);
-            }}
-            .card-alerta {{
-                border-left: 5px solid var(--mh-danger);
-            }}
-            .card-pendente {{
-                border-left: 5px solid var(--mh-warning);
-            }}
-            .card-neutro {{
-                border-left: 5px solid var(--mh-accent);
             }}
             .login-logo {{
                 display: flex;
@@ -251,8 +224,21 @@ def configurar_pagina() -> None:
                 font-size: 0.82rem;
                 font-weight: 800;
             }}
+            .section-panel {{
+                border: 1px solid var(--mh-border);
+                border-radius: 8px;
+                background: var(--mh-panel);
+                box-shadow: 0 8px 24px rgba(23, 51, 38, 0.06);
+                padding: 1rem;
+                margin: 0.7rem 0 1rem;
+            }}
+            .small-muted {{
+                color: var(--mh-muted);
+                font-size: 0.9rem;
+            }}
             div.stButton > button,
-            div.stDownloadButton > button {{
+            div.stDownloadButton > button,
+            div.stFormSubmitButton > button {{
                 border-radius: 8px;
                 border: 1px solid var(--mh-accent);
                 background: var(--mh-accent);
@@ -260,7 +246,8 @@ def configurar_pagina() -> None:
                 font-weight: 700;
             }}
             div.stButton > button:hover,
-            div.stDownloadButton > button:hover {{
+            div.stDownloadButton > button:hover,
+            div.stFormSubmitButton > button:hover {{
                 border-color: var(--mh-accent-alt);
                 background: var(--mh-accent-alt);
                 color: #ffffff;
@@ -327,7 +314,7 @@ def mostrar_cabecalho(empresa: str, competencia: str, status_geral: str, status_
                 <div>
                     <h1 class="portal-title">Portal Contábil do Cliente</h1>
                     <p class="portal-subtitle">
-                        Sistema demonstrativo para acompanhamento contábil e financeiro.
+                        Contas a pagar liberadas para acompanhamento e registro manual.
                     </p>
                 </div>
             </div>
@@ -342,31 +329,13 @@ def mostrar_cabecalho(empresa: str, competencia: str, status_geral: str, status_
     )
 
 
-
 def criar_config_demo() -> dict:
-    """Cria uma configuração demonstrativa se o JSON ainda não existir."""
     config = {
         "clientes": [
-            {
-                "empresa": "DMLIMA",
-                "senha": "123456",
-                "competencias": ["2026-01", "2026-02", "2026-03"],
-            },
-            {
-                "empresa": "VICTOR",
-                "senha": "123456",
-                "competencias": ["2026-01", "2026-02", "2026-03"],
-            },
-            {
-                "empresa": "MHLOG",
-                "senha": "123456",
-                "competencias": ["2026-01", "2026-02", "2026-03"],
-            },
-            {
-                "empresa": "MH BRASIL",
-                "senha": "123456",
-                "competencias": ["2026-01", "2026-02", "2026-03"],
-            },
+            {"empresa": "DMLIMA", "senha": "123456", "competencias": ["2026-01", "2026-02", "2026-03"]},
+            {"empresa": "VICTOR", "senha": "123456", "competencias": ["2026-01", "2026-02", "2026-03"]},
+            {"empresa": "MHLOG", "senha": "123456", "competencias": ["2026-01", "2026-02", "2026-03"]},
+            {"empresa": "MH BRASIL", "senha": "123456", "competencias": ["2026-01", "2026-02", "2026-03"]},
         ]
     }
     CONFIG_PATH.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -383,34 +352,16 @@ def carregar_config() -> dict:
 
 def dados_demo() -> pd.DataFrame:
     registros = [
-        ["DMLIMA", "2026-01", "conta_a_pagar", "Aluguel da sede", "Imobiliaria Central", "2026-01-10", "", 3200.00, "aberto", "Administrativo", "Pagamento recorrente mensal", "AP-DML-001"],
-        ["DMLIMA", "2026-01", "conta_paga", "Internet corporativa", "Telecom Brasil", "2026-01-08", "2026-01-07", 349.90, "pago", "Despesas fixas", "Pago via debito automatico", "PG-DML-001"],
-        ["DMLIMA", "2026-01", "receita", "Servicos de consultoria", "Cliente Alfa", "2026-01-15", "2026-01-15", 12500.00, "recebido", "Receita operacional", "Nota fiscal emitida", "NF-DML-001"],
-        ["DMLIMA", "2026-01", "imposto", "DAS Simples Nacional", "Receita Federal", "2026-02-20", "", 1480.00, "pendente", "Tributos", "Guia em preparacao", "IMP-DML-001"],
-        ["DMLIMA", "2026-01", "relatorio", "Balancete mensal", "Escritorio Contabil", "2026-01-31", "", 0.00, "disponível", "Relatorios contabeis", "PDF disponivel no portal", "REL-DML-001"],
-        ["DMLIMA", "2026-02", "conta_a_pagar", "Licenca de software", "SaaS Financeiro", "2026-02-12", "", 590.00, "aberto", "Tecnologia", "Renovacao mensal", "AP-DML-002"],
-        ["DMLIMA", "2026-02", "receita", "Mensalidade contrato Beta", "Cliente Beta", "2026-02-20", "2026-02-19", 8700.00, "recebido", "Receita recorrente", "Recebido por PIX", "NF-DML-002"],
-        ["VICTOR", "2026-01", "conta_a_pagar", "Compra de mercadorias", "Distribuidora Prime", "2026-01-22", "", 6900.00, "aberto", "Estoque", "Boleto aguardando aprovacao", "AP-VIC-001"],
-        ["VICTOR", "2026-01", "conta_paga", "Frete de entregas", "Transportes Rapidos", "2026-01-11", "2026-01-11", 780.00, "pago", "Logistica", "Pago por transferencia", "PG-VIC-001"],
-        ["VICTOR", "2026-01", "receita", "Vendas no varejo", "Clientes diversos", "2026-01-31", "2026-01-31", 22400.00, "recebido", "Vendas", "Consolidado demonstrativo", "REC-VIC-001"],
-        ["VICTOR", "2026-01", "imposto", "ICMS apuracao", "Secretaria da Fazenda", "2026-02-12", "", 3260.00, "pendente", "Tributos estaduais", "Aguardando guia", "IMP-VIC-001"],
-        ["VICTOR", "2026-01", "relatorio", "Resumo fiscal", "Escritorio Contabil", "2026-01-31", "", 0.00, "disponível", "Relatorios fiscais", "Arquivo demonstrativo", "REL-VIC-001"],
-        ["VICTOR", "2026-02", "conta_a_pagar", "Manutencao loja", "Servicos Prediais", "2026-02-16", "", 1450.00, "aberto", "Operacional", "Servico aprovado", "AP-VIC-002"],
-        ["VICTOR", "2026-02", "receita", "Vendas online", "Marketplace", "2026-02-28", "2026-02-28", 18100.00, "recebido", "E-commerce", "Repasse liquido demonstrativo", "REC-VIC-002"],
-        ["MHLOG", "2026-01", "conta_a_pagar", "Energia eletrica", "Companhia de Energia", "2026-01-18", "", 860.45, "vencido", "Despesas fixas", "Conferir segunda via", "AP-MHL-001"],
-        ["MHLOG", "2026-01", "conta_paga", "Honorarios contabeis", "Escritorio Contabil", "2026-01-05", "2026-01-05", 980.00, "pago", "Contabilidade", "Pagamento confirmado", "PG-MHL-001"],
-        ["MHLOG", "2026-01", "receita", "Servicos logisticos", "Cliente Operacional", "2026-01-30", "2026-01-30", 28600.00, "recebido", "Receita operacional", "Consolidado demonstrativo", "REC-MHL-001"],
-        ["MHLOG", "2026-01", "imposto", "PIS/COFINS", "Receita Federal", "2026-02-25", "", 1980.00, "pendente", "Tributos federais", "Valor sujeito a revisao", "IMP-MHL-001"],
-        ["MHLOG", "2026-01", "relatorio", "DRE gerencial", "Escritorio Contabil", "2026-01-31", "", 0.00, "disponível", "Relatorios gerenciais", "Demonstrativo para reuniao mensal", "REL-MHL-001"],
-        ["MHLOG", "2026-02", "conta_a_pagar", "Manutencao de frota", "Oficina Parceira", "2026-02-19", "", 2250.00, "aberto", "Operacional", "Servico aprovado", "AP-MHL-002"],
-        ["MHLOG", "2026-02", "receita", "Contrato mensal transporte", "Cliente Logistico", "2026-02-28", "2026-02-28", 31400.00, "recebido", "Receita recorrente", "Recebido por transferencia", "REC-MHL-002"],
-        ["MH BRASIL", "2026-01", "conta_a_pagar", "Servicos administrativos", "Fornecedor Brasil", "2026-01-14", "", 1850.00, "aberto", "Administrativo", "Boleto aguardando aprovacao", "AP-MHB-001"],
-        ["MH BRASIL", "2026-01", "conta_paga", "Sistema financeiro", "SaaS Financeiro", "2026-01-09", "2026-01-09", 620.00, "pago", "Tecnologia", "Assinatura mensal", "PG-MHB-001"],
-        ["MH BRASIL", "2026-01", "receita", "Contrato de apoio operacional", "Cliente Brasil", "2026-01-30", "2026-01-30", 19800.00, "recebido", "Receita operacional", "Recebimento demonstrativo", "REC-MHB-001"],
-        ["MH BRASIL", "2026-01", "imposto", "DAS Simples Nacional", "Receita Federal", "2026-02-20", "", 2320.00, "pendente", "Tributos", "Guia demonstrativa em preparacao", "IMP-MHB-001"],
-        ["MH BRASIL", "2026-01", "relatorio", "Resumo mensal", "Escritorio Contabil", "2026-01-31", "", 0.00, "disponível", "Relatorios contabeis", "Arquivo demonstrativo disponivel", "REL-MHB-001"],
-        ["MH BRASIL", "2026-02", "conta_a_pagar", "Consultoria operacional", "Consultoria Beta", "2026-02-18", "", 2750.00, "aberto", "Operacional", "Servico programado", "AP-MHB-002"],
-        ["MH BRASIL", "2026-02", "receita", "Mensalidade contrato Brasil", "Cliente Brasil", "2026-02-28", "2026-02-28", 21400.00, "recebido", "Receita recorrente", "Recebido por PIX", "REC-MHB-002"],
+        ["DMLIMA", "2026-01", "conta_a_pagar", "Aluguel da sede", "Imobiliaria Central", "2026-01-10", "", 3200.00, "aberto", "Administrativo", "Pagamento recorrente mensal", "AP-DML-001", "2.1.5.01.001", "SALARIOS E ORDENADOS A PAGAR", "", "", "", "", "", "", True],
+        ["DMLIMA", "2026-01", "conta_a_pagar", "DAS Simples Nacional", "Receita Federal", "2026-01-20", "", 1480.00, "pendente", "Tributos", "Guia em preparacao", "IMP-DML-001", "2.1.4.01.015", "SIMPLES NACIONAL A RECOLHER", "", "", "", "", "", "", True],
+        ["DMLIMA", "2026-02", "conta_a_pagar", "Licenca de software", "SaaS Financeiro", "2026-02-12", "", 590.00, "aberto", "Tecnologia", "Renovacao mensal", "AP-DML-002", "", "", "", "", "", "", "", "", True],
+        ["VICTOR", "2026-01", "conta_a_pagar", "Compra de mercadorias", "Distribuidora Prime", "2026-01-22", "", 6900.00, "aberto", "Estoque", "Boleto aguardando aprovacao", "AP-VIC-001", "", "", "", "", "", "", "", "", True],
+        ["VICTOR", "2026-02", "conta_a_pagar", "Manutencao loja", "Servicos Prediais", "2026-02-16", "", 1450.00, "aberto", "Operacional", "Servico aprovado", "AP-VIC-002", "", "", "", "", "", "", "", "", True],
+        ["MHLOG", "2026-01", "conta_a_pagar", "Energia eletrica", "Companhia de Energia", "2026-01-18", "", 860.45, "vencido", "Despesas fixas", "Conferir segunda via", "AP-MHL-001", "", "", "", "", "", "", "", "", True],
+        ["MHLOG", "2026-01", "conta_a_pagar", "Honorarios contabeis", "Escritorio Contabil", "2026-01-05", "", 980.00, "aberto", "Contabilidade", "Pagamento previsto", "AP-MHL-002", "2.1.6.02.001", "HONORARIOS CONTABEIS", "", "", "", "", "", "", True],
+        ["MHLOG", "2026-02", "conta_a_pagar", "Manutencao de frota", "Oficina Parceira", "2026-02-19", "", 2250.00, "aberto", "Operacional", "Servico aprovado", "AP-MHL-003", "", "", "", "", "", "", "", "", True],
+        ["MH BRASIL", "2026-01", "conta_a_pagar", "Servicos administrativos", "Fornecedor Brasil", "2026-01-14", "", 1850.00, "aberto", "Administrativo", "Boleto aguardando aprovacao", "AP-MHB-001", "", "", "", "", "", "", "", "", True],
+        ["MH BRASIL", "2026-02", "conta_a_pagar", "Consultoria operacional", "Consultoria Beta", "2026-02-18", "", 2750.00, "aberto", "Operacional", "Servico programado", "AP-MHB-002", "", "", "", "", "", "", "", "", True],
     ]
     return pd.DataFrame(registros, columns=COLUNAS_DADOS)
 
@@ -420,6 +371,13 @@ def criar_dados_demo() -> pd.DataFrame:
     df = dados_demo()
     df.to_csv(CSV_PATH, index=False, encoding="utf-8-sig")
     return df
+
+
+def normalizar_ativo(valor: object) -> bool:
+    if isinstance(valor, bool):
+        return valor
+    texto = str(valor).strip().lower()
+    return texto not in {"false", "0", "nao", "não", "n", "excluido", "excluído"}
 
 
 def carregar_dados() -> pd.DataFrame:
@@ -435,13 +393,22 @@ def carregar_dados() -> pd.DataFrame:
 
     for coluna in COLUNAS_DADOS:
         if coluna not in df.columns:
-            df[coluna] = ""
+            df[coluna] = True if coluna == "ativo" else ""
 
     df = df[COLUNAS_DADOS].copy()
     df["valor"] = pd.to_numeric(df["valor"], errors="coerce").fillna(0)
+    df["ativo"] = df["ativo"].apply(normalizar_ativo)
     df["vencimento_dt"] = pd.to_datetime(df["vencimento"], errors="coerce")
     df["pagamento_recebimento_dt"] = pd.to_datetime(df["pagamento_recebimento"], errors="coerce")
     return df
+
+
+def salvar_dados(df: pd.DataFrame) -> Path:
+    """Salva no CSV operacional do portal, preservando dados demo separados."""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    dados = df[[coluna for coluna in COLUNAS_DADOS if coluna in df.columns]].copy()
+    dados.to_csv(PORTAL_CSV_PATH, index=False, encoding="utf-8-sig")
+    return PORTAL_CSV_PATH
 
 
 def formatar_moeda_br(valor: float) -> str:
@@ -455,13 +422,13 @@ def formatar_data_br(valor: object) -> str:
     return data.strftime("%d/%m/%Y")
 
 
+def agora_br() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
 def gerar_csv_download(df: pd.DataFrame) -> bytes:
     colunas = [coluna for coluna in COLUNAS_DADOS if coluna in df.columns]
     return df[colunas].to_csv(index=False).encode("utf-8-sig")
-
-
-def formatar_moeda(valor: float) -> str:
-    return formatar_moeda_br(valor)
 
 
 def validar_login(config: dict, empresa: str, senha_digitada: str) -> bool:
@@ -512,7 +479,7 @@ def tela_login(config: dict) -> None:
             <section class="login-panel">
                 <span class="login-badge">Acesso restrito</span>
                 <h2>Portal Contábil do Cliente</h2>
-                <p>Consulte informações contábeis e financeiras liberadas pelo escritório.</p>
+                <p>Contas a pagar liberadas pelo escritório.</p>
                 <p>Use seu usuário e senha de acesso.</p>
             </section>
             """,
@@ -524,17 +491,16 @@ def tela_login(config: dict) -> None:
             st.caption("Informe seus dados para continuar.")
             with st.form("form_login", clear_on_submit=False):
                 empresa = st.selectbox("Usuário", empresas, index=empresa_idx)
-                cliente_atual = obter_cliente(config, empresa)
-                competencias = cliente_atual.get("competencias", [])
                 senha = st.text_input("Senha de acesso", type="password")
                 entrar = st.form_submit_button("Entrar", use_container_width=True)
 
             if entrar:
+                cliente_atual = obter_cliente(config, empresa)
+                competencias = cliente_atual.get("competencias", [])
                 if validar_login(config, empresa, senha):
-                    competencia = competencias[0] if competencias else ""
                     st.session_state.autenticado = True
                     st.session_state.empresa_logada = empresa
-                    st.session_state.competencia_logada = competencia
+                    st.session_state.competencia_logada = competencias[0] if competencias else ""
                     st.session_state.empresa_login = empresa
                     st.rerun()
                 else:
@@ -573,39 +539,64 @@ def filtrar_dados(df: pd.DataFrame, empresa: str, competencia: str) -> pd.DataFr
     return df.loc[filtro].copy()
 
 
-def dados_filtrados(df: pd.DataFrame, empresa: str, competencia: str) -> pd.DataFrame:
-    return filtrar_dados(df, empresa, competencia)
+def filtrar_contas_a_pagar_abertas(df: pd.DataFrame, empresa: str, competencia: str) -> pd.DataFrame:
+    dados = filtrar_dados(df, empresa, competencia)
+    status_abertos = dados["status"].astype(str).str.lower().isin(["aberto", "pendente", "vencido"])
+    filtro = (dados["tipo"] == "conta_a_pagar") & status_abertos & dados["ativo"]
+    return dados.loc[filtro].copy()
 
 
-def tabela_por_tipo(df: pd.DataFrame, tipo: str) -> pd.DataFrame:
-    return df.loc[df["tipo"] == tipo].copy()
+def status_geral_contas(df: pd.DataFrame) -> tuple[str, str]:
+    if df.empty:
+        return "Sem contas em aberto", "ok"
+
+    vencidos = int((df["status"].astype(str).str.lower() == "vencido").sum())
+    if vencidos:
+        return f"{vencidos} conta(s) vencida(s)", "alerta"
+    return f"{len(df)} conta(s) em aberto", "pendente"
 
 
-def mostrar_download(df: pd.DataFrame, nome_arquivo: str) -> None:
-    st.download_button(
-        "⬇️ Baixar dados filtrados em CSV",
-        data=gerar_csv_download(df),
-        file_name=nome_arquivo,
-        mime="text/csv",
-        use_container_width=True,
+def preparar_tabela_contas(df: pd.DataFrame) -> pd.DataFrame:
+    colunas = [
+        "vencimento",
+        "descricao",
+        "fornecedor_cliente",
+        "tipo_conta_nome",
+        "valor",
+        "status",
+        "categoria",
+        "documento",
+        "anexo_nome",
+        "criado_em",
+        "criado_por",
+    ]
+    dados = df.sort_values(["vencimento_dt", "descricao"], na_position="last").copy()
+    dados = dados[[coluna for coluna in colunas if coluna in dados.columns]]
+    if "vencimento" in dados:
+        dados["vencimento"] = dados["vencimento"].apply(formatar_data_br)
+    if "valor" in dados:
+        dados["valor"] = dados["valor"].apply(formatar_moeda_br)
+    return dados.rename(
+        columns={
+            "vencimento": "Vencimento",
+            "descricao": "Descrição",
+            "fornecedor_cliente": "Fornecedor",
+            "tipo_conta_nome": "Tipo de conta",
+            "valor": "Valor",
+            "status": "Status",
+            "categoria": "Categoria",
+            "documento": "Documento",
+            "anexo_nome": "Anexo",
+            "criado_em": "Incluído em",
+            "criado_por": "Incluído por",
+        }
     )
 
 
-def preparar_tabela(df: pd.DataFrame) -> pd.DataFrame:
-    dados = df.sort_values(["vencimento_dt", "descricao"], na_position="last").copy()
-    dados = dados[[coluna for coluna in COLUNAS_DADOS if coluna in dados.columns]]
-    dados["vencimento"] = dados["vencimento"].apply(formatar_data_br)
-    dados["pagamento_recebimento"] = dados["pagamento_recebimento"].apply(formatar_data_br)
-    dados["valor"] = dados["valor"].apply(formatar_moeda_br)
-    return dados
-
-
 def estilo_status_linha(linha: pd.Series) -> list[str]:
-    status = str(linha.get("status", "")).strip().lower()
+    status = str(linha.get("Status", "")).strip().lower()
     if status == "vencido":
         estilo = "background-color: rgba(220, 38, 38, 0.10); color: #7f1d1d;"
-    elif status in {"pago", "recebido", "disponível"}:
-        estilo = "background-color: rgba(21, 128, 61, 0.08); color: #14532d;"
     elif status in {"aberto", "pendente"}:
         estilo = "background-color: rgba(183, 121, 31, 0.08); color: #713f12;"
     else:
@@ -613,8 +604,8 @@ def estilo_status_linha(linha: pd.Series) -> list[str]:
     return [estilo] * len(linha)
 
 
-def exibir_dataframe(df: pd.DataFrame) -> None:
-    tabela = preparar_tabela(df)
+def exibir_contas(df: pd.DataFrame) -> None:
+    tabela = preparar_tabela_contas(df)
     st.dataframe(
         tabela.style.apply(estilo_status_linha, axis=1),
         use_container_width=True,
@@ -622,124 +613,206 @@ def exibir_dataframe(df: pd.DataFrame) -> None:
     )
 
 
-def mostrar_tabela(df: pd.DataFrame, tipo: str, nome_arquivo: str) -> None:
-    dados = tabela_por_tipo(df, tipo).sort_values(["vencimento_dt", "descricao"], na_position="last")
-    mostrar_download(dados, nome_arquivo)
+def limpar_nome_arquivo(nome: str) -> str:
+    base = Path(nome).name
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", base).strip("._") or "anexo"
 
-    if dados.empty:
-        st.warning("Nenhum registro encontrado para este filtro.")
+
+def salvar_anexo(uploaded_file: object, empresa: str, documento: str) -> tuple[str, str]:
+    if uploaded_file is None:
+        return "", ""
+
+    ANEXOS_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    empresa_slug = limpar_nome_arquivo(empresa).upper()
+    doc_slug = limpar_nome_arquivo(documento or "documento")
+    nome_final = f"{timestamp}_{empresa_slug}_{doc_slug}_{limpar_nome_arquivo(uploaded_file.name)}"
+    caminho = ANEXOS_DIR / nome_final
+    caminho.write_bytes(uploaded_file.getbuffer())
+    return uploaded_file.name, str(caminho.relative_to(BASE_DIR))
+
+
+def obter_tipo_conta(selecao: str) -> tuple[str, str]:
+    codigo = selecao.split(" - ", 1)[0].strip()
+    return codigo, TIPOS_CONTA_PAGAR.get(codigo, "")
+
+
+def adicionar_conta_a_pagar(
+    df: pd.DataFrame,
+    empresa: str,
+    competencia: str,
+    usuario: str,
+    dados_formulario: dict,
+) -> pd.DataFrame:
+    anexo_nome, anexo_caminho = salvar_anexo(
+        dados_formulario["anexo"],
+        empresa,
+        dados_formulario["documento"],
+    )
+    tipo_codigo, tipo_nome = obter_tipo_conta(dados_formulario["tipo_conta"])
+    nova_linha = {
+        "empresa": empresa,
+        "competencia": competencia,
+        "tipo": "conta_a_pagar",
+        "descricao": dados_formulario["descricao"],
+        "fornecedor_cliente": dados_formulario["fornecedor"],
+        "vencimento": dados_formulario["vencimento"].strftime("%Y-%m-%d"),
+        "pagamento_recebimento": "",
+        "valor": float(dados_formulario["valor"]),
+        "status": dados_formulario["status"],
+        "categoria": dados_formulario["categoria"],
+        "observacao": dados_formulario["observacao"],
+        "documento": dados_formulario["documento"],
+        "tipo_conta_codigo": tipo_codigo,
+        "tipo_conta_nome": tipo_nome,
+        "anexo_nome": anexo_nome,
+        "anexo_caminho": anexo_caminho,
+        "criado_em": agora_br(),
+        "criado_por": usuario,
+        "excluido_em": "",
+        "excluido_por": "",
+        "ativo": True,
+    }
+    return pd.concat([df, pd.DataFrame([nova_linha])], ignore_index=True)
+
+
+def excluir_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str) -> pd.DataFrame:
+    df_atualizado = df.copy()
+    df_atualizado.loc[indice, "ativo"] = False
+    df_atualizado.loc[indice, "excluido_em"] = agora_br()
+    df_atualizado.loc[indice, "excluido_por"] = usuario
+    return df_atualizado
+
+
+def formulario_inclusao(df: pd.DataFrame, empresa: str, competencia: str, usuario: str) -> None:
+    st.markdown("### ➕ Incluir conta a pagar")
+    st.caption("A inclusão fica registrada com data, hora e usuário logado.")
+
+    opcoes_tipo = [f"{codigo} - {nome}" for codigo, nome in TIPOS_CONTA_PAGAR.items()]
+    with st.form("form_conta_a_pagar", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        descricao = c1.text_input("Descrição", placeholder="Ex.: Honorários contábeis")
+        fornecedor = c2.text_input("Fornecedor", placeholder="Ex.: Escritório Contábil")
+
+        c3, c4, c5 = st.columns([1, 1, 1])
+        vencimento = c3.date_input("Vencimento")
+        valor = c4.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
+        status = c5.selectbox("Status", ["aberto", "pendente", "vencido"])
+
+        tipo_conta = st.selectbox("Tipo de conta", opcoes_tipo)
+        c6, c7 = st.columns(2)
+        categoria = c6.text_input("Categoria", placeholder="Ex.: Tributos, Folha, Contabilidade")
+        documento = c7.text_input("Documento / referência", placeholder="Ex.: NF-123, BOLETO-001")
+
+        observacao = st.text_area("Observação", height=80)
+        anexo = st.file_uploader(
+            "Anexo",
+            type=["pdf", "png", "jpg", "jpeg", "xlsx", "csv", "doc", "docx"],
+            help="Use para anexar boleto, nota fiscal, guia ou comprovante.",
+        )
+        enviar = st.form_submit_button("Salvar conta a pagar", use_container_width=True)
+
+    if not enviar:
         return
 
-    exibir_dataframe(dados)
+    if not descricao.strip() or not fornecedor.strip() or valor <= 0:
+        st.error("Preencha descrição, fornecedor e valor maior que zero.")
+        return
+
+    documento_final = documento.strip() or f"AP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    dados_formulario = {
+        "descricao": descricao.strip(),
+        "fornecedor": fornecedor.strip(),
+        "vencimento": vencimento,
+        "valor": valor,
+        "status": status,
+        "tipo_conta": tipo_conta,
+        "categoria": categoria.strip(),
+        "documento": documento_final,
+        "observacao": observacao.strip(),
+        "anexo": anexo,
+    }
+    df_atualizado = adicionar_conta_a_pagar(df, empresa, competencia, usuario, dados_formulario)
+    salvar_dados(df_atualizado)
+    st.success("Conta a pagar incluída com sucesso.")
+    st.rerun()
 
 
-def status_geral_competencia(df: pd.DataFrame) -> tuple[str, str]:
-    if df.empty:
-        return "Sem dados", "pendente"
+def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, usuario: str) -> None:
+    st.markdown("### 🗑️ Excluir conta a pagar")
+    st.caption("A exclusão mantém auditoria no arquivo, marcando o registro como inativo.")
 
-    vencidos = int((df["status"].astype(str).str.lower() == "vencido").sum())
-    pendentes = int(df["status"].astype(str).str.lower().isin(["aberto", "pendente"]).sum())
+    if contas.empty:
+        st.info("Nenhuma conta em aberto para excluir neste filtro.")
+        return
 
-    if vencidos:
-        return f"{vencidos} item(ns) vencido(s)", "alerta"
-    if pendentes:
-        return f"{pendentes} item(ns) pendente(s)", "pendente"
-    return "Em dia", "ok"
+    opcoes = {}
+    for indice, linha in contas.iterrows():
+        rotulo = (
+            f"{linha.get('documento', '')} | {formatar_data_br(linha.get('vencimento'))} | "
+            f"{linha.get('fornecedor_cliente', '')} | {formatar_moeda_br(linha.get('valor', 0))}"
+        )
+        opcoes[rotulo] = indice
+
+    with st.form("form_excluir_conta"):
+        selecionada = st.selectbox("Conta a excluir", list(opcoes.keys()))
+        confirmar = st.checkbox("Confirmo a exclusão desta conta a pagar")
+        excluir = st.form_submit_button("Excluir conta selecionada", use_container_width=True)
+
+    if excluir:
+        if not confirmar:
+            st.warning("Marque a confirmação antes de excluir.")
+            return
+
+        df_atualizado = excluir_conta_a_pagar(df, opcoes[selecionada], usuario)
+        salvar_dados(df_atualizado)
+        st.success("Conta a pagar excluída da lista ativa.")
+        st.rerun()
 
 
-def card_resumo(titulo: str, linhas: list[str], classe: str = "card-neutro") -> None:
-    itens = "".join(f"<li>{linha}</li>" for linha in linhas)
-    st.markdown(
-        f"""
-        <div class="info-card {classe}">
-            <h4>{titulo}</h4>
-            <ul>{itens}</ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, competencia: str, usuario: str) -> None:
+    contas = filtrar_contas_a_pagar_abertas(df, empresa, competencia)
+    total_aberto = contas["valor"].sum()
+    vencidas = contas.loc[contas["status"].astype(str).str.lower() == "vencido"]
+    proximos = contas.sort_values(["vencimento_dt", "descricao"], na_position="last").head(5)
 
+    st.subheader("💸 Contas a Pagar")
+    st.caption("Lista operacional de obrigações em aberto, com inclusão manual e anexos.")
 
-def aba_resumo(df: pd.DataFrame, empresa: str, competencia: str) -> None:
-    total_a_pagar = df.loc[df["tipo"] == "conta_a_pagar", "valor"].sum()
-    total_pago = df.loc[df["tipo"] == "conta_paga", "valor"].sum()
-    total_recebido = df.loc[df["tipo"] == "receita", "valor"].sum()
-    impostos_em_aberto = df.loc[df["tipo"] == "imposto", "valor"].sum()
-    saldo_previsto = total_recebido - total_a_pagar - impostos_em_aberto
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total em aberto", formatar_moeda_br(total_aberto))
+    c2.metric("Quantidade", int(len(contas)))
+    c3.metric("Vencidas", int(len(vencidas)))
+    c4.metric("Próximos vencimentos", int(len(proximos)))
 
-    st.subheader("🏠 Visao geral")
-    st.caption(f"{empresa} | Competencia {competencia}")
-
-    col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("💸 Total a pagar", formatar_moeda_br(total_a_pagar))
-    col2.metric("✅ Total pago", formatar_moeda_br(total_pago))
-    col3.metric("📥 Total recebido", formatar_moeda_br(total_recebido))
-    col4.metric("🧾 Impostos em aberto", formatar_moeda_br(impostos_em_aberto))
-    col5.metric("📊 Saldo previsto", formatar_moeda_br(saldo_previsto))
-
-    st.divider()
-
-    if saldo_previsto < 0:
-        st.error("Atenção: o saldo financeiro previsto esta negativo para esta competencia.")
-    elif impostos_em_aberto > 0:
-        st.warning("Existem impostos pendentes. Confira os vencimentos antes do fechamento.")
+    if len(vencidas):
+        st.error("Existem contas vencidas neste filtro. Revise os vencimentos antes do pagamento.")
+    elif len(contas):
+        st.warning("Existem contas em aberto aguardando acompanhamento.")
     else:
-        st.success("Fluxo financeiro demonstrativo sem alertas criticos.")
+        st.success("Nenhuma conta a pagar em aberto para esta competência.")
 
-    vencimentos = df.loc[df["tipo"].isin(["conta_a_pagar", "imposto"])].copy()
-    vencimentos = vencimentos.sort_values(["vencimento_dt", "descricao"], na_position="last").head(5)
-    proximos = [
-        f"<strong>{escape(formatar_data_br(linha.vencimento))}</strong> - {escape(str(linha.descricao))}: {escape(formatar_moeda_br(linha.valor))}"
-        for linha in vencimentos.itertuples()
-    ] or ["Nenhum vencimento cadastrado para a competência."]
-
-    vencidos = int((df["status"].astype(str).str.lower() == "vencido").sum())
-    pendentes = int(df["status"].astype(str).str.lower().isin(["aberto", "pendente"]).sum())
-    docs_disponiveis = int((df["tipo"] == "relatorio").sum())
-    impostos_pendentes = int(
-        ((df["tipo"] == "imposto") & df["status"].astype(str).str.lower().isin(["aberto", "pendente"])).sum()
-    )
-
-    c1, c2 = st.columns(2)
-    with c1:
-        card_resumo(
-            "Situação Financeira",
-            [
-                f"Saldo previsto: <strong>{escape(formatar_moeda_br(saldo_previsto))}</strong>",
-                f"Recebimentos: <strong>{escape(formatar_moeda_br(total_recebido))}</strong>",
-                f"Compromissos em aberto: <strong>{escape(formatar_moeda_br(total_a_pagar + impostos_em_aberto))}</strong>",
-            ],
-            "card-ok" if saldo_previsto >= 0 else "card-alerta",
-        )
-    with c2:
-        card_resumo("Próximos Vencimentos", proximos, "card-pendente" if not vencimentos.empty else "card-neutro")
-
-    c3, c4 = st.columns(2)
-    with c3:
-        card_resumo(
-            "Alertas Contábeis",
-            [
-                f"Itens vencidos: <strong>{vencidos}</strong>",
-                f"Itens abertos ou pendentes: <strong>{pendentes}</strong>",
-                f"Impostos pendentes: <strong>{impostos_pendentes}</strong>",
-            ],
-            "card-alerta" if vencidos else "card-pendente" if pendentes else "card-ok",
-        )
-    with c4:
-        card_resumo(
-            "Documentos Disponíveis",
-            [
-                f"Relatórios cadastrados: <strong>{docs_disponiveis}</strong>",
-                "Downloads em CSV disponíveis nas abas do portal.",
-                "Área preparada para anexos PDF em versão futura.",
-            ],
-            "card-neutro",
-        )
+    with st.expander("➕ Incluir nova conta a pagar", expanded=False):
+        formulario_inclusao(df, empresa, competencia, usuario)
 
     st.divider()
-    st.markdown("#### Movimentacoes da competencia")
-    mostrar_download(df, f"dados_filtrados_{empresa}_{competencia}.csv")
-    exibir_dataframe(df)
+    st.markdown("### 📋 Contas em aberto")
+    st.download_button(
+        "⬇️ Baixar contas filtradas em CSV",
+        data=gerar_csv_download(contas),
+        file_name=f"contas_a_pagar_{empresa}_{competencia}.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+
+    if contas.empty:
+        st.info("Nenhum registro encontrado para este filtro.")
+    else:
+        exibir_contas(contas)
+
+    st.divider()
+    with st.expander("🗑️ Excluir conta a pagar", expanded=False):
+        area_exclusao(df, contas, usuario)
 
 
 def main() -> None:
@@ -752,51 +825,12 @@ def main() -> None:
         st.stop()
 
     empresa, competencia = sidebar_filtros(config)
-
     df = carregar_dados()
-    df_filtrado = filtrar_dados(df, empresa, competencia)
-    status_geral, status_tipo = status_geral_competencia(df_filtrado)
+    contas = filtrar_contas_a_pagar_abertas(df, empresa, competencia)
+    status_geral, status_tipo = status_geral_contas(contas)
 
     mostrar_cabecalho(empresa, competencia, status_geral, status_tipo)
-
-    if df_filtrado.empty:
-        st.info("Nao ha dados demonstrativos para a empresa e competencia selecionadas.")
-        st.stop()
-
-    abas = st.tabs(
-        [
-            "🏠 Resumo",
-            "💸 Contas a Pagar",
-            "✅ Contas Pagas",
-            "📥 Receitas",
-            "🧾 Impostos",
-            "📁 Relatórios",
-        ]
-    )
-
-    with abas[0]:
-        aba_resumo(df_filtrado, empresa, competencia)
-
-    with abas[1]:
-        st.subheader("💸 Contas a Pagar")
-        mostrar_tabela(df_filtrado, "conta_a_pagar", f"contas_a_pagar_{empresa}_{competencia}.csv")
-
-    with abas[2]:
-        st.subheader("✅ Contas Pagas")
-        mostrar_tabela(df_filtrado, "conta_paga", f"contas_pagas_{empresa}_{competencia}.csv")
-
-    with abas[3]:
-        st.subheader("📥 Receitas")
-        mostrar_tabela(df_filtrado, "receita", f"receitas_{empresa}_{competencia}.csv")
-
-    with abas[4]:
-        st.subheader("🧾 Impostos")
-        mostrar_tabela(df_filtrado, "imposto", f"impostos_{empresa}_{competencia}.csv")
-
-    with abas[5]:
-        st.subheader("📁 Relatórios")
-        st.info("Nesta primeira versao, os relatorios aparecem como registros demonstrativos.")
-        mostrar_tabela(df_filtrado, "relatorio", f"relatorios_{empresa}_{competencia}.csv")
+    pagina_contas_a_pagar(df, empresa, competencia, empresa)
 
 
 if __name__ == "__main__":

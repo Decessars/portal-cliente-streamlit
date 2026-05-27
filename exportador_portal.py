@@ -20,6 +20,30 @@ COLUNAS_PORTAL = [
     "categoria",
     "observacao",
     "documento",
+    "tipo_conta_codigo",
+    "tipo_conta_nome",
+    "anexo_nome",
+    "anexo_caminho",
+    "criado_em",
+    "criado_por",
+    "excluido_em",
+    "excluido_por",
+    "ativo",
+]
+
+COLUNAS_OBRIGATORIAS = [
+    "empresa",
+    "competencia",
+    "tipo",
+    "descricao",
+    "fornecedor_cliente",
+    "vencimento",
+    "pagamento_recebimento",
+    "valor",
+    "status",
+    "categoria",
+    "observacao",
+    "documento",
 ]
 
 TIPOS_VALIDOS = {
@@ -52,17 +76,19 @@ def normalizar_colunas_portal(df: pd.DataFrame) -> pd.DataFrame:
     dados = dados[COLUNAS_PORTAL].copy()
 
     for coluna in COLUNAS_PORTAL:
-        if coluna != "valor":
+        if coluna not in {"valor", "ativo"}:
             dados[coluna] = dados[coluna].fillna("").astype(str).str.strip()
 
     dados["valor"] = pd.to_numeric(dados["valor"], errors="coerce").fillna(0)
+    dados["ativo"] = dados["ativo"].fillna(True)
+    dados["ativo"] = dados["ativo"].apply(lambda valor: str(valor).strip().lower() not in {"false", "0", "nao", "não", "n"})
     return dados
 
 
 def validar_dados_portal(df: pd.DataFrame) -> list[str]:
     """Retorna uma lista de problemas encontrados. Lista vazia significa dados validos."""
     erros: list[str] = []
-    colunas_faltantes = [coluna for coluna in COLUNAS_PORTAL if coluna not in df.columns]
+    colunas_faltantes = [coluna for coluna in COLUNAS_OBRIGATORIAS if coluna not in df.columns]
 
     if colunas_faltantes:
         erros.append(f"Colunas faltantes: {', '.join(colunas_faltantes)}")
@@ -127,6 +153,15 @@ def gerar_dados_demo_portal() -> pd.DataFrame:
             "categoria": "Administrativo",
             "observacao": "Registro demonstrativo para testes",
             "documento": "AP-DML-001",
+            "tipo_conta_codigo": "2.1.6.02.001",
+            "tipo_conta_nome": "HONORARIOS CONTABEIS",
+            "anexo_nome": "",
+            "anexo_caminho": "",
+            "criado_em": "",
+            "criado_por": "",
+            "excluido_em": "",
+            "excluido_por": "",
+            "ativo": True,
         },
         {
             "empresa": "DMLIMA",
@@ -141,6 +176,15 @@ def gerar_dados_demo_portal() -> pd.DataFrame:
             "categoria": "Receita operacional",
             "observacao": "Registro demonstrativo para testes",
             "documento": "NF-DML-001",
+            "tipo_conta_codigo": "",
+            "tipo_conta_nome": "",
+            "anexo_nome": "",
+            "anexo_caminho": "",
+            "criado_em": "",
+            "criado_por": "",
+            "excluido_em": "",
+            "excluido_por": "",
+            "ativo": True,
         },
         {
             "empresa": "DMLIMA",
@@ -155,6 +199,15 @@ def gerar_dados_demo_portal() -> pd.DataFrame:
             "categoria": "Relatorios contabeis",
             "observacao": "Documento demonstrativo disponivel",
             "documento": "REL-DML-001",
+            "tipo_conta_codigo": "",
+            "tipo_conta_nome": "",
+            "anexo_nome": "",
+            "anexo_caminho": "",
+            "criado_em": "",
+            "criado_por": "",
+            "excluido_em": "",
+            "excluido_por": "",
+            "ativo": True,
         },
     ]
     return normalizar_colunas_portal(pd.DataFrame(registros))
