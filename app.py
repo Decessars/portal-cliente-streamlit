@@ -1198,12 +1198,12 @@ def exibir_contas(df: pd.DataFrame) -> None:
     )
 
 
-def exibir_contas_com_acoes(df: pd.DataFrame, empresa: str, usuario: str) -> None:
-    if df.empty:
+def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame, empresa: str, usuario: str) -> None:
+    if contas_exibidas.empty:
         st.info("Nenhum registro encontrado para este filtro.")
         return
 
-    contas = df.sort_values(["vencimento_dt", "descricao"], na_position="last").copy()
+    contas = contas_exibidas.sort_values(["vencimento_dt", "descricao"], na_position="last").copy()
     cabecalho = st.columns([1, 2.2, 2.2, 1.1, 1, 1.2, 1.5])
     for col, label in zip(cabecalho, ["Vencimento", "Descrição", "Fornecedor", "Valor", "Status", "Documento", "Ações"]):
         col.caption(label)
@@ -1222,7 +1222,7 @@ def exibir_contas_com_acoes(df: pd.DataFrame, empresa: str, usuario: str) -> Non
             st.rerun()
         if acao_cols[1].button("✅", key=f"pagar_{indice}", help="Marcar como pago"):
             try:
-                df_atualizado = marcar_conta_como_paga(df, indice, usuario)
+                df_atualizado = marcar_conta_como_paga(df_base, indice, usuario)
                 salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
                 st.success("Conta marcada como paga.")
                 st.rerun()
@@ -1230,7 +1230,7 @@ def exibir_contas_com_acoes(df: pd.DataFrame, empresa: str, usuario: str) -> Non
                 st.error(str(erro))
         if acao_cols[2].button("🗑️", key=f"excluir_{indice}", help="Excluir conta"):
             try:
-                df_atualizado = excluir_conta_a_pagar(df, indice, usuario)
+                df_atualizado = excluir_conta_a_pagar(df_base, indice, usuario)
                 salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
                 st.success("Conta excluída da lista ativa.")
                 st.rerun()
@@ -1513,30 +1513,14 @@ def importacao_massa_contas(df: pd.DataFrame, empresa: str, usuario: str) -> Non
     st.rerun()
 
 
-def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: str) -> None:
-    st.markdown("### Editar conta a pagar")
-    st.caption("Selecione uma conta ativa, altere os campos e salve.")
-
-    if contas.empty:
-        st.info("Nenhuma conta em aberto para editar.")
+def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str, key_prefix: str) -> None:
+    if indice not in df.index:
+        st.error("Conta selecionada nao foi encontrada.")
+        if st.button("Fechar", key=f"{key_prefix}_fechar_indice_invalido"):
+            st.session_state.pop("conta_edicao_indice", None)
+            st.rerun()
         return
 
-    opcoes = {}
-    for indice, linha in contas.iterrows():
-        rotulo = (
-            f"{linha.get('documento', '')} | {formatar_data_br(linha.get('vencimento'))} | "
-            f"{linha.get('fornecedor_cliente', '')} | {formatar_moeda_br(linha.get('valor', 0))}"
-        )
-        opcoes[rotulo] = indice
-
-    indice_preselecionado = st.session_state.get("conta_edicao_indice")
-    labels = list(opcoes.keys())
-    index_padrao = 0
-    if indice_preselecionado in opcoes.values():
-        index_padrao = labels.index(next(label for label, idx in opcoes.items() if idx == indice_preselecionado))
-
-    selecionada = st.selectbox("Conta a editar", labels, index=index_padrao, key="editar_conta_select")
-    indice = opcoes[selecionada]
     linha = df.loc[indice]
     vencimento_atual = pd.to_datetime(linha.get("vencimento"), errors="coerce")
     if pd.isna(vencimento_atual):
@@ -1552,7 +1536,13 @@ def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: s
         opcoes_tipo.insert(0, tipo_rotulo)
     tipo_idx = opcoes_tipo.index(tipo_rotulo)
 
-    with st.form("form_editar_conta"):
+    st.caption(
+        f"{formatar_data_br(linha.get('vencimento'))} | "
+        f"{linha.get('fornecedor_cliente', '')} | "
+        f"{formatar_moeda_br(float(linha.get('valor', 0) or 0))}"
+    )
+
+    with st.form(f"{key_prefix}_form_editar_conta"):
         c1, c2 = st.columns(2)
         descricao = c1.text_input("Descricao", value=str(linha.get("descricao", "")))
         fornecedor = c2.text_input("Fornecedor", value=str(linha.get("fornecedor_cliente", "")))
@@ -1566,8 +1556,13 @@ def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: s
 
         tipo_conta_sel = st.selectbox("Tipo de conta", opcoes_tipo, index=tipo_idx)
         tipo_conta_outro = st.text_input("Tipo de conta novo") if tipo_conta_sel == "Outro" else ""
-        salvar = st.form_submit_button("Salvar alteracoes", use_container_width=True)
+        b1, b2 = st.columns(2)
+        salvar = b1.form_submit_button("Salvar alteracoes", use_container_width=True)
+        cancelar = b2.form_submit_button("Cancelar", use_container_width=True)
 
+    if cancelar:
+        st.session_state.pop("conta_edicao_indice", None)
+        st.rerun()
     if not salvar:
         return
 
@@ -1598,6 +1593,38 @@ def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: s
     st.session_state.pop("conta_edicao_indice", None)
     st.success("Conta a pagar atualizada com sucesso.")
     st.rerun()
+
+
+if hasattr(st, "dialog"):
+    @st.dialog("Editar conta a pagar")
+    def janela_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
+        formulario_edicao_conta(df, indice, empresa, usuario, "janela_edicao")
+else:
+    def janela_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
+        st.warning("Atualize o Streamlit para abrir edicao em janela. Usando edicao na pagina.")
+        formulario_edicao_conta(df, indice, empresa, usuario, "janela_edicao")
+
+
+def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: str) -> None:
+    st.markdown("### Editar conta a pagar")
+    st.caption("Selecione uma conta ativa, altere os campos e salve.")
+
+    if contas.empty:
+        st.info("Nenhuma conta em aberto para editar.")
+        return
+
+    opcoes = {}
+    for indice, linha in contas.iterrows():
+        rotulo = (
+            f"{linha.get('documento', '')} | {formatar_data_br(linha.get('vencimento'))} | "
+            f"{linha.get('fornecedor_cliente', '')} | {formatar_moeda_br(linha.get('valor', 0))}"
+        )
+        opcoes[rotulo] = indice
+
+    labels = list(opcoes.keys())
+    selecionada = st.selectbox("Conta a editar", labels, key="editar_conta_select")
+    formulario_edicao_conta(df, opcoes[selecionada], empresa, usuario, "area_edicao")
+
 
 def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### 🗑️ Excluir conta a pagar")
@@ -1681,7 +1708,11 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     if contas.empty:
         st.info("Nenhum registro encontrado para este filtro.")
     else:
-        exibir_contas_com_acoes(contas, empresa, usuario)
+        exibir_contas_com_acoes(contas, df, empresa, usuario)
+
+    indice_edicao = st.session_state.get("conta_edicao_indice")
+    if indice_edicao is not None:
+        janela_edicao_conta(df, indice_edicao, empresa, usuario)
 
     st.divider()
     st.markdown("### Manutencao")
@@ -1690,9 +1721,6 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
     with st.expander("Importar contas em massa por CSV", expanded=False):
         importacao_massa_contas(df, empresa, usuario)
-
-    with st.expander("Editar conta a pagar", expanded=False):
-        area_edicao(df, contas, empresa, usuario)
 
     with st.expander("Excluir conta a pagar", expanded=False):
         area_exclusao(df, contas, empresa, usuario)
