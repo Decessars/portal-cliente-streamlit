@@ -1430,6 +1430,7 @@ def inicializar_sessao() -> None:
     st.session_state.setdefault("modulo_atual", "contas_a_pagar")
     st.session_state.setdefault("exibir_troca_senha_padrao", False)
     st.session_state.setdefault("senha_padrao_mantida", False)
+    st.session_state.setdefault("exibir_troca_senha_manual", False)
 
 
 def tela_login(config: dict) -> None:
@@ -1623,12 +1624,71 @@ def tela_troca_senha_padrao(config: dict) -> None:
     sucesso_temporario("Senha alterada com sucesso.")
 
 
+def tela_troca_senha_manual(config: dict) -> None:
+    usuario = st.session_state.get("usuario_logado", "")
+    st.markdown('<div class="login-spacer"></div>', unsafe_allow_html=True)
+    _, col_senha, _ = st.columns([0.8, 1.35, 0.8])
+    with col_senha:
+        with st.container(border=True):
+            st.markdown(
+                """
+                <div class="password-panel-header">
+                    <h2>Trocar senha</h2>
+                    <p>Informe sua senha atual e defina uma nova senha de acesso.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            with st.form("form_troca_senha_manual"):
+                senha_atual = st.text_input("Senha atual", type="password")
+                nova_senha = st.text_input("Nova senha", type="password")
+                confirmar_senha = st.text_input("Confirmar nova senha", type="password")
+                col1, col2 = st.columns(2)
+                trocar = col1.form_submit_button("Salvar nova senha", use_container_width=True)
+                cancelar = col2.form_submit_button("Cancelar", use_container_width=True)
+
+    if cancelar:
+        st.session_state.exibir_troca_senha_manual = False
+        st.rerun()
+
+    if not trocar:
+        st.stop()
+
+    if not validar_login(config, usuario, senha_atual):
+        st.error("Senha atual invalida.")
+        st.stop()
+    if not nova_senha or not confirmar_senha:
+        st.error("Informe e confirme a nova senha.")
+        st.stop()
+    if nova_senha != confirmar_senha:
+        st.error("As senhas informadas nao conferem.")
+        st.stop()
+    if len(nova_senha) < 6:
+        st.error("A nova senha precisa ter pelo menos 6 caracteres.")
+        st.stop()
+    if nova_senha == senha_atual:
+        st.error("A nova senha precisa ser diferente da senha atual.")
+        st.stop()
+
+    try:
+        atualizar_senha_usuario(config, usuario, nova_senha)
+    except ValueError as erro:
+        st.error(str(erro))
+        st.stop()
+
+    st.session_state.exibir_troca_senha_manual = False
+    st.session_state.exibir_troca_senha_padrao = False
+    st.session_state.senha_padrao_mantida = False
+    sucesso_temporario("Senha alterada com sucesso.")
+
+
 def logout() -> None:
     st.session_state.autenticado = False
     st.session_state.usuario_logado = ""
     st.session_state.empresa_logada = ""
     st.session_state.exibir_troca_senha_padrao = False
     st.session_state.senha_padrao_mantida = False
+    st.session_state.exibir_troca_senha_manual = False
 
 
 def voltar_dashboard_empresas() -> None:
@@ -1642,6 +1702,10 @@ def selecionar_empresa(empresa: str, config: dict) -> None:
 
 def selecionar_modulo(modulo_id: str) -> None:
     st.session_state.modulo_atual = modulo_id
+
+
+def abrir_troca_senha() -> None:
+    st.session_state.exibir_troca_senha_manual = True
 
 
 def exibir_menu_contabil() -> None:
@@ -1683,6 +1747,7 @@ def sidebar_filtros(config: dict) -> tuple[str, str]:
     st.sidebar.text_input("Perfil", value=perfil_do_usuario(config, usuario).title(), disabled=True)
     st.sidebar.divider()
     st.sidebar.success("Acesso liberado")
+    st.sidebar.button("Trocar senha", use_container_width=True, on_click=abrir_troca_senha)
     st.sidebar.button("Trocar empresa", use_container_width=True, on_click=voltar_dashboard_empresas)
     st.sidebar.button("Sair", use_container_width=True, on_click=logout)
     return empresa, usuario
@@ -1707,6 +1772,7 @@ def dashboard_empresas(config: dict, df: pd.DataFrame) -> None:
     st.sidebar.divider()
     st.sidebar.title("Sessao")
     st.sidebar.text_input("Usuario", value=usuario, disabled=True)
+    st.sidebar.button("Trocar senha", use_container_width=True, on_click=abrir_troca_senha)
     st.sidebar.button("Sair", use_container_width=True, on_click=logout)
 
     st.title("Dashboard por empresa")
@@ -2699,6 +2765,10 @@ def main() -> None:
 
     if st.session_state.get("exibir_troca_senha_padrao"):
         tela_troca_senha_padrao(config)
+        st.stop()
+
+    if st.session_state.get("exibir_troca_senha_manual"):
+        tela_troca_senha_manual(config)
         st.stop()
 
     if not st.session_state.get("empresa_logada"):

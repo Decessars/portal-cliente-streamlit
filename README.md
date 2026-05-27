@@ -61,6 +61,7 @@ Perfis:
 Perfis de consulta podem visualizar e baixar relatorios, mas nao podem incluir, duplicar, editar, pagar, importar ou excluir contas.
 
 Quando um usuario entra com a senha padrao `123456`, o portal exibe um aviso para trocar a senha ou confirmar que deseja permanecer com ela. As senhas continuam registradas no arquivo de configuracao do portal.
+Depois do login, tambem e possivel trocar a senha pelo botao `Trocar senha` na barra lateral.
 
 ## Publicação No Streamlit Community Cloud
 
