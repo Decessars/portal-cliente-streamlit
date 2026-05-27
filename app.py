@@ -483,14 +483,7 @@ def carregar_config() -> dict:
 
 
 def dados_demo() -> pd.DataFrame:
-    registros = [
-        ["MHLOG", "2026-01", "conta_a_pagar", "Energia eletrica", "Companhia de Energia", "2026-01-18", "", 860.45, "vencido", "Despesas fixas", "Conferir segunda via", "AP-MHL-001", "", "", "", "", "", "", "", "", True],
-        ["MHLOG", "2026-01", "conta_a_pagar", "Honorarios contabeis", "Escritorio Contabil", "2026-01-05", "", 980.00, "aberto", "Contabilidade", "Pagamento previsto", "AP-MHL-002", "2.1.6.02.001", "HONORARIOS CONTABEIS", "", "", "", "", "", "", True],
-        ["MHLOG", "2026-02", "conta_a_pagar", "Manutencao de frota", "Oficina Parceira", "2026-02-19", "", 2250.00, "aberto", "Operacional", "Servico aprovado", "AP-MHL-003", "", "", "", "", "", "", "", "", True],
-        ["MH BRASIL", "2026-01", "conta_a_pagar", "Servicos administrativos", "Fornecedor Brasil", "2026-01-14", "", 1850.00, "aberto", "Administrativo", "Boleto aguardando aprovacao", "AP-MHB-001", "", "", "", "", "", "", "", "", True],
-        ["MH BRASIL", "2026-02", "conta_a_pagar", "Consultoria operacional", "Consultoria Beta", "2026-02-18", "", 2750.00, "aberto", "Operacional", "Servico programado", "AP-MHB-002", "", "", "", "", "", "", "", "", True],
-    ]
-    return pd.DataFrame(registros, columns=COLUNAS_DADOS)
+    return pd.DataFrame(columns=COLUNAS_DADOS)
 
 
 def criar_dados_demo() -> pd.DataFrame:
