@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import unicodedata
 from datetime import datetime
 from html import escape
 from pathlib import Path
@@ -727,7 +728,17 @@ def opcoes_com_historico(df: pd.DataFrame, coluna: str, padroes: list[str]) -> l
         )
         opcoes.extend(historico)
     opcoes.extend(padroes)
-    return list(dict.fromkeys(opcoes))
+    unicas = []
+    chaves_vistas = set()
+    for opcao in opcoes:
+        texto = str(opcao or "").strip()
+        chave = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii").casefold()
+        chave = re.sub(r"\s+", " ", chave).strip()
+        if chave in chaves_vistas:
+            continue
+        chaves_vistas.add(chave)
+        unicas.append(texto)
+    return unicas
 
 
 def resolver_opcao_digitavel(selecao: str, texto_outro: str) -> str:
