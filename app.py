@@ -829,6 +829,25 @@ def normalizar_valor_importado(valor: object) -> float:
         return 0.0
 
 
+def parse_valor_br(valor: object) -> float | None:
+    texto = str(valor or "").strip()
+    if not texto:
+        return None
+
+    texto = re.sub(r"[^0-9,.-]", "", texto)
+    if not texto:
+        return None
+    if "," in texto:
+        texto = texto.replace(".", "").replace(",", ".")
+    elif "." in texto:
+        texto = texto.replace(".", "")
+
+    try:
+        return float(texto)
+    except ValueError:
+        return None
+
+
 def preparar_importacao_contas(df_importado: pd.DataFrame, empresa: str, usuario: str) -> tuple[pd.DataFrame, list[str]]:
     df_importado.columns = [str(coluna).strip().lower() for coluna in df_importado.columns]
     faltantes = [coluna for coluna in COLUNAS_IMPORTACAO_OBRIGATORIAS if coluna not in df_importado.columns]
@@ -1533,7 +1552,7 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     with st.form("form_conta_a_pagar", clear_on_submit=True):
         c3, c4, c5 = st.columns([1, 1, 1])
         vencimento = c3.date_input("Vencimento")
-        valor = c4.number_input("Valor", min_value=0.0, step=10.0, format="%.2f")
+        valor_texto = c4.text_input("Valor", placeholder="Ex.: 1.000,00")
         status = c5.selectbox("Status", ["aberto", "pendente", "vencido"])
 
         observacao = st.text_area("Descricao / observacao livre", height=88)
@@ -1549,9 +1568,10 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     fornecedor = resolver_opcao_digitavel(fornecedor_sel, fornecedor_novo)
     tipo_conta = resolver_opcao_digitavel(tipo_conta_sel, tipo_conta_novo)
     _, tipo_nome = obter_tipo_conta(tipo_conta)
+    valor = parse_valor_br(valor_texto)
 
-    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor <= 0:
-        st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero.")
+    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor is None or valor <= 0:
+        st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero. Use ponto para milhar e virgula para centavos.")
         return
     if anexo is None and not codigo_pagamento.strip():
         st.error("Inclua um anexo ou informe o codigo de barras/chave Pix.")
@@ -1667,7 +1687,11 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
 
         c3, c4, c5 = st.columns([1, 1, 1])
         vencimento = c3.date_input("Vencimento", value=vencimento_atual.date())
-        valor = c4.number_input("Valor", min_value=0.0, step=10.0, format="%.2f", value=float(linha.get("valor", 0) or 0))
+        valor_texto = c4.text_input(
+            "Valor",
+            value=formatar_moeda_br(float(linha.get("valor", 0) or 0)).replace("R$ ", ""),
+            placeholder="Ex.: 1.000,00",
+        )
         status_opcoes = ["aberto", "pendente", "vencido"]
         status_atual = str(linha.get("status", "aberto")).lower()
         status = c5.selectbox("Status", status_opcoes, index=status_opcoes.index(status_atual) if status_atual in status_opcoes else 0)
@@ -1699,8 +1723,9 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
 
     tipo_conta = resolver_opcao_digitavel(tipo_conta_sel, tipo_conta_novo)
     _, tipo_nome = obter_tipo_conta(tipo_conta)
-    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor <= 0:
-        st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero.")
+    valor = parse_valor_br(valor_texto)
+    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor is None or valor <= 0:
+        st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero. Use ponto para milhar e virgula para centavos.")
         return
     if not str(linha.get("anexo_nome", "") or "").strip() and anexo is None and not codigo_pagamento.strip():
         st.error("Inclua um anexo ou informe o codigo de barras/chave Pix.")
