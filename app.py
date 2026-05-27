@@ -240,6 +240,52 @@ def configurar_pagina() -> None:
                 padding-top: 1.25rem;
                 padding-bottom: 2rem;
             }}
+            .login-shell {{
+                min-height: calc(100vh - 7rem);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 1.5rem 0;
+            }}
+            .login-spacer {{
+                height: clamp(1rem, 11vh, 5rem);
+            }}
+            .login-card {{
+                width: min(58rem, 100%);
+                display: grid;
+                grid-template-columns: minmax(17rem, 0.9fr) minmax(20rem, 1.1fr);
+                gap: 0;
+                border: 1px solid var(--mh-border);
+                border-radius: 8px;
+                background: var(--mh-panel);
+                box-shadow: 0 18px 46px rgba(23, 51, 38, 0.12);
+                overflow: hidden;
+            }}
+            .login-brand-panel {{
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+                gap: 1rem;
+                min-height: 25rem;
+                padding: 2rem 1.4rem;
+                background: linear-gradient(180deg, rgba(47, 143, 91, 0.11), rgba(233, 245, 236, 0.72));
+                border: 1px solid rgba(200, 221, 206, 0.7);
+                border-radius: 8px;
+            }}
+            .login-form-panel {{
+                padding: 2.1rem 0 0.75rem;
+            }}
+            .login-form-panel h3 {{
+                margin-top: 0;
+                margin-bottom: 0.35rem;
+                font-size: 1.45rem;
+            }}
+            .login-form-panel p {{
+                margin: 0 0 1.2rem;
+                color: var(--mh-muted);
+            }}
             .portal-header {{
                 display: flex;
                 align-items: center;
@@ -403,26 +449,22 @@ def configurar_pagina() -> None:
             .login-logo {{
                 display: flex;
                 justify-content: center;
-                margin-bottom: 0.75rem;
+                margin-bottom: 0;
             }}
             .login-logo img {{
-                width: 150px;
+                width: 132px;
                 max-width: 100%;
                 height: auto;
                 object-fit: contain;
                 display: block;
             }}
             .login-panel {{
-                border: 1px solid var(--mh-border);
-                border-radius: 8px;
-                background: var(--mh-panel);
-                box-shadow: 0 12px 34px rgba(23, 51, 38, 0.10);
-                padding: 1.4rem;
                 text-align: center;
             }}
             .login-panel h2 {{
-                margin: 0 0 0.35rem;
-                font-size: 1.55rem;
+                margin: 0.65rem 0 0.5rem;
+                font-size: 1.6rem;
+                line-height: 1.15;
             }}
             .login-panel p {{
                 color: var(--mh-muted);
@@ -557,11 +599,31 @@ def configurar_pagina() -> None:
                 .portal-subtitle {{
                     font-size: 0.9rem;
                 }}
+                .login-shell {{
+                    min-height: auto;
+                    padding: 0.75rem 0;
+                }}
+                .login-spacer {{
+                    height: 0.5rem;
+                }}
+                .login-card {{
+                    grid-template-columns: 1fr;
+                }}
+                .login-brand-panel {{
+                    min-height: 0;
+                    padding: 1.25rem 1rem;
+                }}
+                .login-form-panel {{
+                    padding: 0.25rem 0 0.35rem;
+                }}
+                .login-form-panel h3 {{
+                    font-size: 1.25rem;
+                }}
                 .login-logo img {{
                     width: 118px;
                 }}
                 .login-panel {{
-                    padding: 1rem;
+                    padding: 0;
                 }}
                 .login-panel h2 {{
                     font-size: 1.25rem;
@@ -1433,43 +1495,54 @@ def tela_login(config: dict) -> None:
         else '<strong style="color:var(--mh-accent);font-size:1.5rem;">MH LOG</strong>'
     )
 
-    st.write("")
-    _, col_login, _ = st.columns([1, 1.05, 1])
+    st.markdown('<div class="login-spacer"></div>', unsafe_allow_html=True)
+    _, col_login, _ = st.columns([0.45, 2.1, 0.45])
     with col_login:
-        st.markdown(
-            f"""
-            <div class="login-logo">{logo_html}</div>
-            <section class="login-panel">
-                <span class="login-badge">Acesso restrito</span>
-                <h2>Portal Contabil do Cliente</h2>
-                <p>Contas a pagar liberadas pelo escritorio.</p>
-                <p>Use seu usuario e senha de acesso.</p>
-            </section>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.write("")
         with st.container(border=True):
-            st.subheader("Entrar no portal")
-            st.caption("Informe seus dados para continuar.")
-            with st.form("form_login", clear_on_submit=False):
-                usuario = st.text_input("Usuario", value=st.session_state.get("usuario_login", ""))
-                senha = st.text_input("Senha de acesso", type="password")
-                entrar = st.form_submit_button("Entrar", use_container_width=True)
+            col_brand, col_form = st.columns([0.9, 1.1], gap="large")
+            with col_brand:
+                st.markdown(
+                    f"""
+                    <section class="login-brand-panel">
+                        <div class="login-logo">{logo_html}</div>
+                        <div class="login-panel">
+                            <span class="login-badge">Acesso restrito</span>
+                            <h2>Portal Contabil do Cliente</h2>
+                            <p>Contas a pagar liberadas pelo escritorio.</p>
+                            <p>Acompanhe vencimentos, pendencias e relatorios por empresa.</p>
+                        </div>
+                    </section>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            with col_form:
+                st.markdown(
+                    """
+                    <div class="login-form-panel">
+                        <h3>Entrar no portal</h3>
+                        <p>Informe seus dados para continuar.</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                with st.form("form_login", clear_on_submit=False):
+                    usuario = st.text_input("Usuario", value=st.session_state.get("usuario_login", ""))
+                    senha = st.text_input("Senha de acesso", type="password")
+                    entrar = st.form_submit_button("Entrar", use_container_width=True)
 
-            if entrar:
-                usuario = usuario.strip().upper()
-                empresas_liberadas = empresas_do_usuario(config, usuario)
-                if validar_login(config, usuario, senha) and empresas_liberadas:
-                    st.session_state.autenticado = True
-                    st.session_state.usuario_logado = usuario
-                    st.session_state.usuario_login = usuario
-                    st.session_state.empresa_logada = ""
-                    st.session_state.exibir_troca_senha_padrao = senha == "123456"
-                    st.session_state.senha_padrao_mantida = False
-                    st.rerun()
-                else:
-                    st.error("Usuario ou senha invalida.")
+    if entrar:
+        usuario = usuario.strip().upper()
+        empresas_liberadas = empresas_do_usuario(config, usuario)
+        if validar_login(config, usuario, senha) and empresas_liberadas:
+            st.session_state.autenticado = True
+            st.session_state.usuario_logado = usuario
+            st.session_state.usuario_login = usuario
+            st.session_state.empresa_logada = ""
+            st.session_state.exibir_troca_senha_padrao = senha == "123456"
+            st.session_state.senha_padrao_mantida = False
+            st.rerun()
+        else:
+            st.error("Usuario ou senha invalida.")
 
 
 def tela_troca_senha_padrao(config: dict) -> None:
