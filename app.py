@@ -553,6 +553,7 @@ def normalizar_ativo(valor: object) -> bool:
 
 
 def normalizar_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.loc[:, ~df.columns.duplicated()].copy()
     for coluna in COLUNAS_DADOS:
         if coluna not in df.columns:
             df[coluna] = True if coluna == "ativo" else ""
@@ -1153,9 +1154,21 @@ def adicionar_conta_a_pagar(
 
 def excluir_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str) -> pd.DataFrame:
     df_atualizado = df.copy()
-    df_atualizado.loc[indice, "ativo"] = False
-    df_atualizado.loc[indice, "excluido_em"] = agora_br()
-    df_atualizado.loc[indice, "excluido_por"] = usuario
+    if indice not in df_atualizado.index:
+        raise ValueError("Conta selecionada não foi encontrada na base atual.")
+
+    posicao = df_atualizado.index.get_loc(indice)
+    if isinstance(posicao, slice):
+        posicao = posicao.start
+    elif not isinstance(posicao, int):
+        posicoes = list(posicao)
+        if not posicoes:
+            raise ValueError("Conta selecionada não foi encontrada na base atual.")
+        posicao = posicoes[0]
+
+    df_atualizado.iat[posicao, df_atualizado.columns.get_loc("ativo")] = False
+    df_atualizado.iat[posicao, df_atualizado.columns.get_loc("excluido_em")] = agora_br()
+    df_atualizado.iat[posicao, df_atualizado.columns.get_loc("excluido_por")] = usuario
     return df_atualizado
 
 
@@ -1286,7 +1299,7 @@ def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario:
             return
 
         df_atualizado = excluir_conta_a_pagar(df, opcoes[selecionada], usuario)
-        salvar_dados_empresa(df_atualizado, empresa)
+        salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
         st.success("Conta a pagar excluída da lista ativa.")
         st.rerun()
 
