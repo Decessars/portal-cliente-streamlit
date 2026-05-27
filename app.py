@@ -616,13 +616,11 @@ def renderizar_metricas(cards: list[dict[str, object]]) -> None:
         delta = card.get("delta")
         delta_html = f'<div class="metric-delta">↑ {escape(str(delta))}</div>' if delta is not None else ""
         itens.append(
-            f"""
-            <div class="metric-card">
-                <div class="metric-label">{escape(str(card["label"]))}</div>
-                <div class="metric-value">{escape(str(card["value"]))}</div>
-                {delta_html}
-            </div>
-            """
+            '<div class="metric-card">'
+            f'<div class="metric-label">{escape(str(card["label"]))}</div>'
+            f'<div class="metric-value">{escape(str(card["value"]))}</div>'
+            f"{delta_html}"
+            "</div>"
         )
 
     st.markdown(f'<div class="metric-grid">{"".join(itens)}</div>', unsafe_allow_html=True)
