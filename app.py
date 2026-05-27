@@ -75,6 +75,20 @@ COLUNAS_EXTRAS = [
 
 COLUNAS_DADOS = COLUNAS_BASE + COLUNAS_EXTRAS
 
+COLUNAS_IMPORTACAO = [
+    "descricao",
+    "fornecedor",
+    "vencimento",
+    "valor",
+    "status",
+    "categoria",
+    "documento",
+    "tipo_conta_codigo",
+    "observacao",
+]
+
+COLUNAS_IMPORTACAO_OBRIGATORIAS = ["descricao", "fornecedor", "vencimento", "valor"]
+
 
 def configurar_pagina() -> None:
     st.set_page_config(
@@ -582,6 +596,104 @@ def gerar_csv_download(df: pd.DataFrame) -> bytes:
     return df[colunas].to_csv(index=False).encode("utf-8-sig")
 
 
+def gerar_modelo_importacao_csv() -> bytes:
+    exemplo = pd.DataFrame(
+        [
+            {
+                "descricao": "Boleto fornecedor exemplo",
+                "fornecedor": "Fornecedor Exemplo",
+                "vencimento": "2026-06-10",
+                "valor": "1500,00",
+                "status": "aberto",
+                "categoria": "Administrativo",
+                "documento": "NF-0001",
+                "tipo_conta_codigo": "2.1.6.02.001",
+                "observacao": "Linha de exemplo; apague antes de importar dados reais.",
+            }
+        ],
+        columns=COLUNAS_IMPORTACAO,
+    )
+    return exemplo.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig")
+
+
+def ler_csv_importacao(arquivo: object) -> pd.DataFrame:
+    try:
+        return pd.read_csv(arquivo, sep=None, engine="python", dtype=str).fillna("")
+    except Exception as erro:
+        raise ValueError(f"Não foi possível ler o CSV: {erro}") from erro
+
+
+def normalizar_valor_importado(valor: object) -> float:
+    texto = str(valor).strip()
+    if not texto:
+        return 0.0
+    texto = re.sub(r"[^0-9,.-]", "", texto)
+    if "," in texto and "." in texto:
+        texto = texto.replace(".", "").replace(",", ".")
+    elif "," in texto:
+        texto = texto.replace(",", ".")
+    try:
+        return float(texto)
+    except ValueError:
+        return 0.0
+
+
+def preparar_importacao_contas(df_importado: pd.DataFrame, empresa: str, usuario: str) -> tuple[pd.DataFrame, list[str]]:
+    df_importado.columns = [str(coluna).strip().lower() for coluna in df_importado.columns]
+    faltantes = [coluna for coluna in COLUNAS_IMPORTACAO_OBRIGATORIAS if coluna not in df_importado.columns]
+    if faltantes:
+        raise ValueError(f"Colunas obrigatórias ausentes: {', '.join(faltantes)}.")
+
+    linhas = []
+    erros = []
+    for numero_linha, linha in df_importado.iterrows():
+        linha_numero = numero_linha + 2
+        descricao = str(linha.get("descricao", "")).strip()
+        fornecedor = str(linha.get("fornecedor", "")).strip()
+        vencimento = pd.to_datetime(linha.get("vencimento", ""), errors="coerce", dayfirst=True)
+        valor = normalizar_valor_importado(linha.get("valor", ""))
+        status = str(linha.get("status", "aberto")).strip().lower() or "aberto"
+        status = status if status in {"aberto", "pendente", "vencido"} else "aberto"
+        tipo_codigo = str(linha.get("tipo_conta_codigo", "")).strip()
+        tipo_nome = TIPOS_CONTA_PAGAR.get(tipo_codigo, "")
+
+        if not descricao or not fornecedor or pd.isna(vencimento) or valor <= 0:
+            erros.append(f"Linha {linha_numero}: preencha descricao, fornecedor, vencimento válido e valor maior que zero.")
+            continue
+
+        documento = str(linha.get("documento", "")).strip()
+        if not documento:
+            documento = f"IMP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}-{linha_numero}"
+
+        linhas.append(
+            {
+                "empresa": empresa,
+                "competencia": "",
+                "tipo": "conta_a_pagar",
+                "descricao": descricao,
+                "fornecedor_cliente": fornecedor,
+                "vencimento": vencimento.strftime("%Y-%m-%d"),
+                "pagamento_recebimento": "",
+                "valor": valor,
+                "status": status,
+                "categoria": str(linha.get("categoria", "")).strip(),
+                "observacao": str(linha.get("observacao", "")).strip(),
+                "documento": documento,
+                "tipo_conta_codigo": tipo_codigo,
+                "tipo_conta_nome": tipo_nome,
+                "anexo_nome": "",
+                "anexo_caminho": "",
+                "criado_em": agora_br(),
+                "criado_por": usuario,
+                "excluido_em": "",
+                "excluido_por": "",
+                "ativo": True,
+            }
+        )
+
+    return pd.DataFrame(linhas, columns=COLUNAS_DADOS), erros
+
+
 def validar_login(config: dict, usuario: str, senha_digitada: str) -> bool:
     senha_configurada = obter_senha_usuario(config, usuario)
     return bool(senha_configurada and senha_digitada and senha_digitada == senha_configurada)
@@ -1019,6 +1131,52 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.rerun()
 
 
+def importacao_massa_contas(df: pd.DataFrame, empresa: str, usuario: str) -> None:
+    st.markdown("### Importar contas por CSV")
+    st.caption("Baixe o modelo, preencha as linhas e importe o arquivo CSV nesta empresa.")
+    st.download_button(
+        "Baixar modelo CSV",
+        data=gerar_modelo_importacao_csv(),
+        file_name="modelo_contas_a_pagar.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+
+    with st.form("form_importacao_massa", clear_on_submit=True):
+        arquivo = st.file_uploader("Arquivo CSV preenchido", type=["csv"])
+        importar = st.form_submit_button("Importar contas do CSV", use_container_width=True)
+
+    if not importar:
+        return
+
+    if arquivo is None:
+        st.error("Selecione um arquivo CSV para importar.")
+        return
+
+    try:
+        df_importado = ler_csv_importacao(arquivo)
+        novas_contas, erros = preparar_importacao_contas(df_importado, empresa, usuario)
+    except ValueError as erro:
+        st.error(str(erro))
+        return
+
+    if erros:
+        st.warning("Algumas linhas não foram importadas.")
+        for erro in erros[:10]:
+            st.write(f"- {erro}")
+        if len(erros) > 10:
+            st.write(f"- Mais {len(erros) - 10} erro(s).")
+
+    if novas_contas.empty:
+        st.error("Nenhuma conta válida encontrada para importar.")
+        return
+
+    df_atualizado = pd.concat([df, novas_contas], ignore_index=True)
+    salvar_dados_empresa(df_atualizado, empresa)
+    st.success(f"{len(novas_contas)} conta(s) importada(s) com sucesso.")
+    st.rerun()
+
+
 def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### 🗑️ Excluir conta a pagar")
     st.caption("A exclusão mantém auditoria no arquivo, marcando o registro como inativo.")
@@ -1075,6 +1233,9 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
     with st.expander("➕ Incluir nova conta a pagar", expanded=False):
         formulario_inclusao(df, empresa, usuario)
+
+    with st.expander("Importar contas em massa por CSV", expanded=False):
+        importacao_massa_contas(df, empresa, usuario)
 
     st.divider()
     st.markdown("### 📋 Contas em aberto")
