@@ -1947,10 +1947,6 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor is None or valor <= 0:
         st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero. Use ponto para milhar e virgula para centavos.")
         return
-    if anexo is None and not codigo_pagamento.strip():
-        st.error("Inclua um anexo ou informe o codigo de barras/chave Pix.")
-        return
-
     documento_final = f"AP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     dados_formulario = {
         "descricao": descricao.strip(),
@@ -2101,10 +2097,6 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
     if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor is None or valor <= 0:
         st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero. Use ponto para milhar e virgula para centavos.")
         return
-    if not str(linha.get("anexo_nome", "") or "").strip() and anexo is None and not codigo_pagamento.strip():
-        st.error("Inclua um anexo ou informe o codigo de barras/chave Pix.")
-        return
-
     dados_formulario = {
         "descricao": descricao.strip(),
         "fornecedor": fornecedor.strip(),
