@@ -27,6 +27,7 @@ EMPRESAS_DATA_DIR = DATA_DIR / "empresas"
 CSV_PATH = DATA_DIR / "dados_demo.csv"
 XLSX_PATH = DATA_DIR / "dados_demo.xlsx"
 CONFIG_PATH = BASE_DIR / "config_clientes.json"
+USUARIOS_PERFIS_PATH = BASE_DIR / "usuarios_perfis.txt"
 LOGO_FULL_PATH = ASSETS_DIR / "mh_log_logo_app_512.png"
 
 TEMA_MH = {
@@ -528,11 +529,20 @@ def configurar_pagina() -> None:
                 background: var(--mh-panel);
                 box-shadow: 0 8px 24px rgba(23, 51, 38, 0.06);
                 padding: 1rem;
-                min-height: 9rem;
+                min-height: 11rem;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+            }}
+            .empresa-card:hover {{
+                border-color: var(--mh-accent);
+                box-shadow: 0 12px 30px rgba(23, 51, 38, 0.10);
+                transform: translateY(-1px);
             }}
             .empresa-card h3 {{
                 margin: 0 0 0.5rem;
-                font-size: 1.15rem;
+                font-size: 1.1rem;
             }}
             .empresa-card p {{
                 margin: 0.2rem 0;
@@ -814,6 +824,7 @@ def criar_config_demo() -> dict:
         ]
     }
     CONFIG_PATH.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
+    atualizar_txt_usuarios_perfis(config)
     return config
 
 
@@ -843,16 +854,60 @@ def normalizar_config(config: dict) -> dict:
     return {"usuarios": usuarios, "clientes": clientes}
 
 
+def gerar_txt_usuarios_perfis(config: dict) -> str:
+    linhas = [
+        "USUARIOS E PERFIS DO PORTAL",
+        "Atualizado automaticamente a partir de config_clientes.json.",
+        "",
+        "Arquivo apenas para consulta.",
+        "",
+    ]
+    for usuario in sorted(config.get("usuarios", []), key=lambda item: item.get("usuario", "")):
+        nome = str(usuario.get("usuario", "")).strip().upper()
+        perfil = perfil_do_usuario(config, nome)
+        senha = str(usuario.get("senha", ""))
+        empresas = ", ".join(usuario.get("empresas", [])) or "Todas"
+        permissoes = permissoes_do_usuario(config, nome)
+        if permissoes["manutencao"]:
+            acesso = "Opera o sistema"
+        elif permissoes["pagar"]:
+            acesso = "Consulta e marca contas como pagas"
+        else:
+            acesso = "Somente consulta"
+        linhas.extend(
+            [
+                f"Usuario: {nome}",
+                f"Senha: {senha}",
+                f"Perfil: {rotulo_perfil(perfil)}",
+                f"Empresas: {empresas}",
+                f"Acesso: {acesso}",
+                "-" * 48,
+            ]
+        )
+    return "\n".join(linhas) + "\n"
+
+
+def atualizar_txt_usuarios_perfis(config: dict) -> None:
+    conteudo = gerar_txt_usuarios_perfis(config)
+    if USUARIOS_PERFIS_PATH.exists() and USUARIOS_PERFIS_PATH.read_text(encoding="utf-8") == conteudo:
+        return
+    USUARIOS_PERFIS_PATH.write_text(conteudo, encoding="utf-8")
+
+
 def carregar_config() -> dict:
     if not CONFIG_PATH.exists():
         return criar_config_demo()
 
     with CONFIG_PATH.open("r", encoding="utf-8") as arquivo:
-        return normalizar_config(json.load(arquivo))
+        config = normalizar_config(json.load(arquivo))
+    atualizar_txt_usuarios_perfis(config)
+    return config
 
 
 def salvar_config(config: dict) -> None:
-    CONFIG_PATH.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
+    config_normalizado = normalizar_config(config)
+    CONFIG_PATH.write_text(json.dumps(config_normalizado, indent=2, ensure_ascii=False), encoding="utf-8")
+    atualizar_txt_usuarios_perfis(config_normalizado)
 
 
 def atualizar_senha_usuario(config: dict, usuario: str, nova_senha: str) -> dict:
@@ -1928,7 +1983,7 @@ def dashboard_empresas(config: dict, df: pd.DataFrame) -> None:
     st.title("Dashboard por empresa")
     st.caption("Escolha uma empresa para abrir as contas a pagar e os indicadores dela.")
 
-    cols = st.columns(2, gap="medium")
+    cols = st.columns(4, gap="medium")
     for indice, empresa in enumerate(empresas):
         contas_empresa = df.loc[
             (df["empresa"] == empresa)

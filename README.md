@@ -65,6 +65,7 @@ Perfis de consulta podem visualizar e baixar relatorios, mas nao podem incluir, 
 
 Quando um usuario entra com a senha padrao `123456`, o portal exibe um aviso para trocar a senha ou confirmar que deseja permanecer com ela. As senhas continuam registradas no arquivo de configuracao do portal.
 Depois do login, tambem e possivel trocar a senha pelo botao `Trocar senha` na barra lateral.
+O arquivo `usuarios_perfis.txt` fica na pasta do projeto apenas para consulta e e atualizado automaticamente a partir do `config_clientes.json`.
 
 ## Publicação No Streamlit Community Cloud
 
