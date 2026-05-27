@@ -89,6 +89,24 @@ COLUNAS_IMPORTACAO = [
 
 COLUNAS_IMPORTACAO_OBRIGATORIAS = ["descricao", "fornecedor", "vencimento", "valor"]
 
+MODULOS_CONTABEIS = [
+    {"id": "contas_a_pagar", "titulo": "Contas a Pagar", "ativo": True},
+    {"id": "contas_a_receber", "titulo": "Contas a Receber", "ativo": False},
+    {"id": "conciliacao_bancaria", "titulo": "Conciliação Bancária", "ativo": False},
+    {"id": "extratos_lancamentos", "titulo": "Extratos e Lançamentos", "ativo": False},
+    {"id": "receitas_notas", "titulo": "Receitas e Notas Fiscais", "ativo": False},
+    {"id": "impostos_guias", "titulo": "Impostos e Guias", "ativo": False},
+    {"id": "folha_inss_fgts", "titulo": "Folha, INSS e FGTS", "ativo": False},
+    {"id": "plano_contas", "titulo": "Plano de Contas", "ativo": False},
+    {"id": "centros_custo", "titulo": "Centros de Custo", "ativo": False},
+    {"id": "balancete", "titulo": "Balancete", "ativo": False},
+    {"id": "dre", "titulo": "DRE", "ativo": False},
+    {"id": "balanco_patrimonial", "titulo": "Balanço Patrimonial", "ativo": False},
+    {"id": "razao_contabil", "titulo": "Razão Contábil", "ativo": False},
+    {"id": "relatorios", "titulo": "Relatórios PDF/Excel", "ativo": False},
+    {"id": "backup_auditoria", "titulo": "Backup e Auditoria", "ativo": False},
+]
+
 
 def configurar_pagina() -> None:
     st.set_page_config(
@@ -280,6 +298,17 @@ def configurar_pagina() -> None:
             .small-muted {{
                 color: var(--mh-muted);
                 font-size: 0.9rem;
+            }}
+            .menu-contabil-titulo {{
+                color: var(--mh-text);
+                font-weight: 800;
+                font-size: 0.98rem;
+                margin: 0.4rem 0 0.25rem;
+            }}
+            .menu-contabil-ajuda {{
+                color: var(--mh-muted);
+                font-size: 0.78rem;
+                margin: 0 0 0.45rem;
             }}
             div.stButton > button,
             div.stDownloadButton > button,
@@ -737,6 +766,7 @@ def inicializar_sessao() -> None:
     st.session_state.setdefault("autenticado", False)
     st.session_state.setdefault("usuario_logado", "")
     st.session_state.setdefault("empresa_logada", "")
+    st.session_state.setdefault("modulo_atual", "contas_a_pagar")
 
 
 def tela_login(config: dict) -> None:
@@ -875,7 +905,37 @@ def voltar_dashboard_empresas() -> None:
 
 def selecionar_empresa(empresa: str, config: dict) -> None:
     st.session_state.empresa_logada = empresa
+    st.session_state.modulo_atual = "contas_a_pagar"
     st.rerun()
+
+
+def selecionar_modulo(modulo_id: str) -> None:
+    st.session_state.modulo_atual = modulo_id
+    st.rerun()
+
+
+def exibir_menu_contabil() -> None:
+    st.sidebar.markdown(
+        """
+        <div class="menu-contabil-titulo">Menu contábil</div>
+        <div class="menu-contabil-ajuda">Os módulos desativados serão liberados aos poucos.</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    modulo_atual = st.session_state.get("modulo_atual", "contas_a_pagar")
+    for modulo in MODULOS_CONTABEIS:
+        ativo = bool(modulo["ativo"])
+        selecionado = modulo["id"] == modulo_atual
+        label = modulo["titulo"] if ativo else f"{modulo['titulo']} - em breve"
+        st.sidebar.button(
+            label,
+            key=f"menu_{modulo['id']}",
+            use_container_width=True,
+            disabled=not ativo,
+            type="primary" if selecionado and ativo else "secondary",
+            on_click=selecionar_modulo if ativo else None,
+            args=(modulo["id"],) if ativo else None,
+        )
 
 
 def sidebar_filtros(config: dict) -> tuple[str, str]:
@@ -888,6 +948,8 @@ def sidebar_filtros(config: dict) -> tuple[str, str]:
 
     st.sidebar.text_input("Usuario", value=usuario, disabled=True)
     st.sidebar.text_input("Empresa", value=empresa, disabled=True)
+    st.sidebar.divider()
+    exibir_menu_contabil()
     st.sidebar.divider()
     st.sidebar.success("Acesso liberado")
     st.sidebar.button("Trocar empresa", use_container_width=True, on_click=voltar_dashboard_empresas)
@@ -1276,7 +1338,10 @@ def main() -> None:
     status_geral, status_tipo = status_geral_contas(contas)
 
     mostrar_cabecalho(empresa, status_geral, status_tipo)
-    pagina_contas_a_pagar(df, empresa, usuario)
+    if st.session_state.get("modulo_atual", "contas_a_pagar") == "contas_a_pagar":
+        pagina_contas_a_pagar(df, empresa, usuario)
+    else:
+        st.info("Este módulo ainda não está liberado.")
 
 
 if __name__ == "__main__":
