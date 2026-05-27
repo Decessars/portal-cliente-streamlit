@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
@@ -1024,6 +1025,110 @@ def sucesso_temporario(mensagem: str, segundos: float = 1.5) -> None:
     st.rerun()
 
 
+def renderizar_relogio_clima() -> None:
+    components.html(
+        """
+        <div class="info-bar">
+            <div>
+                <span class="info-label">Agora</span>
+                <strong id="clock">Carregando...</strong>
+            </div>
+            <div>
+                <span class="info-label">Clima local</span>
+                <strong id="weather">Permita a localização</strong>
+            </div>
+        </div>
+        <style>
+            body { margin: 0; background: transparent; font-family: "Source Sans Pro", Arial, sans-serif; }
+            .info-bar {
+                display: flex;
+                justify-content: flex-end;
+                align-items: center;
+                gap: 0.75rem;
+                width: 100%;
+                box-sizing: border-box;
+            }
+            .info-bar > div {
+                min-width: 13rem;
+                border: 1px solid #c8ddce;
+                border-radius: 8px;
+                background: rgba(255, 255, 255, 0.86);
+                color: #173326;
+                padding: 0.55rem 0.75rem;
+                box-shadow: 0 6px 18px rgba(23, 51, 38, 0.06);
+            }
+            .info-label {
+                display: block;
+                color: #60776a;
+                font-size: 0.72rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                line-height: 1.1;
+            }
+            strong {
+                display: block;
+                margin-top: 0.15rem;
+                color: #2f8f5b;
+                font-size: 0.98rem;
+                line-height: 1.2;
+                white-space: nowrap;
+            }
+            @media (max-width: 700px) {
+                .info-bar { justify-content: stretch; flex-direction: column; align-items: stretch; }
+                .info-bar > div { min-width: 0; }
+            }
+        </style>
+        <script>
+            const clock = document.getElementById("clock");
+            const weather = document.getElementById("weather");
+
+            function updateClock() {
+                const now = new Date();
+                clock.textContent = new Intl.DateTimeFormat("pt-BR", {
+                    weekday: "short",
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit"
+                }).format(now);
+            }
+            updateClock();
+            setInterval(updateClock, 1000);
+
+            async function loadWeather(position) {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                try {
+                    const [forecastResponse, geoResponse] = await Promise.all([
+                        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m&timezone=auto`),
+                        fetch(`https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=pt&count=1`)
+                    ]);
+                    const forecast = await forecastResponse.json();
+                    const geo = await geoResponse.json();
+                    const temp = forecast.current?.temperature_2m;
+                    const unit = forecast.current_units?.temperature_2m || "°C";
+                    const place = geo.results?.[0]?.name || "Sua cidade";
+                    weather.textContent = temp === undefined ? `${place}: indisponível` : `${place}: ${Math.round(temp)}${unit}`;
+                } catch (error) {
+                    weather.textContent = "Clima indisponível";
+                }
+            }
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(loadWeather, () => {
+                    weather.textContent = "Localização não permitida";
+                }, { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 });
+            } else {
+                weather.textContent = "Localização indisponível";
+            }
+        </script>
+        """,
+        height=78,
+    )
+
+
 def gerar_csv_download(df: pd.DataFrame) -> bytes:
     colunas = [coluna for coluna in COLUNAS_DADOS if coluna in df.columns]
     return df[colunas].to_csv(index=False).encode("utf-8-sig")
@@ -1819,6 +1924,7 @@ def dashboard_empresas(config: dict, df: pd.DataFrame) -> None:
     st.sidebar.button("Trocar senha", use_container_width=True, on_click=abrir_troca_senha)
     st.sidebar.button("Trocar usuário", use_container_width=True, on_click=logout)
 
+    renderizar_relogio_clima()
     st.title("Dashboard por empresa")
     st.caption("Escolha uma empresa para abrir as contas a pagar e os indicadores dela.")
 
@@ -2832,6 +2938,7 @@ def main() -> None:
     contas = filtrar_contas_a_pagar_abertas(df, empresa)
     status_geral, status_tipo = status_geral_contas(contas)
 
+    renderizar_relogio_clima()
     mostrar_cabecalho(empresa, status_geral, status_tipo)
     if st.session_state.get("modulo_atual", "contas_a_pagar") == "contas_a_pagar":
         pagina_contas_a_pagar(df, empresa, usuario, config)

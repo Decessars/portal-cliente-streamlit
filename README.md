@@ -6,6 +6,7 @@ Nesta versão, a função principal é **Contas a Pagar**:
 
 - login por usuário e senha;
 - dashboard por empresa apos o login;
+- relógio em tempo real e clima local mediante permissão de localização do navegador;
 - lista de contas em aberto;
 - download de contas em Excel formatado;
 - inclusão manual de contas a pagar;
