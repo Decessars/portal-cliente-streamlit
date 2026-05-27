@@ -219,20 +219,18 @@ def configurar_pagina() -> None:
             .card-neutro {{
                 border-left: 5px solid var(--mh-accent);
             }}
-            .login-shell {{
-                max-width: 920px;
-                margin: 2.5rem auto 0;
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 1.2rem;
-                align-items: stretch;
+            .login-logo {{
+                display: flex;
+                justify-content: center;
+                margin-bottom: 0.75rem;
             }}
             .login-panel {{
                 border: 1px solid var(--mh-border);
                 border-radius: 8px;
                 background: var(--mh-panel);
                 box-shadow: 0 12px 34px rgba(23, 51, 38, 0.10);
-                padding: 1.3rem;
+                padding: 1.4rem;
+                text-align: center;
             }}
             .login-panel h2 {{
                 margin: 0 0 0.35rem;
@@ -241,13 +239,6 @@ def configurar_pagina() -> None:
             .login-panel p {{
                 color: var(--mh-muted);
                 margin: 0.25rem 0;
-            }}
-            .login-brand {{
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                gap: 0.85rem;
-                background: linear-gradient(145deg, var(--mh-panel-soft), #ffffff);
             }}
             .login-badge {{
                 display: inline-flex;
@@ -301,10 +292,6 @@ def configurar_pagina() -> None:
                 }}
                 .portal-title {{
                     font-size: 1.55rem;
-                }}
-                .login-shell {{
-                    grid-template-columns: 1fr;
-                    margin-top: 1rem;
                 }}
             }}
         </style>
@@ -517,23 +504,21 @@ def tela_login(config: dict) -> None:
     )
 
     st.write("")
-    col_info, col_login = st.columns([1.05, 0.95], gap="large", vertical_alignment="center")
-
-    with col_info:
+    _, col_login, _ = st.columns([1, 1.05, 1])
+    with col_login:
         st.markdown(
             f"""
-            <section class="login-panel login-brand">
-                <div>{logo_html}</div>
+            <div class="login-logo">{logo_html}</div>
+            <section class="login-panel">
                 <span class="login-badge">Acesso restrito</span>
                 <h2>Portal Contábil do Cliente</h2>
                 <p>Consulte informações contábeis e financeiras liberadas pelo escritório.</p>
-                <p>Use o usuário, competência e senha de acesso fornecidos pela equipe.</p>
+                <p>Use seu usuário e senha de acesso.</p>
             </section>
             """,
             unsafe_allow_html=True,
         )
-
-    with col_login:
+        st.write("")
         with st.container(border=True):
             st.subheader("Entrar no portal")
             st.caption("Informe seus dados para continuar.")
@@ -541,19 +526,19 @@ def tela_login(config: dict) -> None:
                 empresa = st.selectbox("Usuário", empresas, index=empresa_idx)
                 cliente_atual = obter_cliente(config, empresa)
                 competencias = cliente_atual.get("competencias", [])
-                competencia = st.selectbox("Competência", competencias)
                 senha = st.text_input("Senha de acesso", type="password")
                 entrar = st.form_submit_button("Entrar", use_container_width=True)
 
             if entrar:
                 if validar_login(config, empresa, senha):
+                    competencia = competencias[0] if competencias else ""
                     st.session_state.autenticado = True
                     st.session_state.empresa_logada = empresa
                     st.session_state.competencia_logada = competencia
                     st.session_state.empresa_login = empresa
                     st.rerun()
                 else:
-                    st.error("Usuário, competência ou senha inválida.")
+                    st.error("Usuário ou senha inválida.")
 
 
 def logout() -> None:
