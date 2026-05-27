@@ -43,13 +43,22 @@ Use estes acessos demonstrativos para testar:
 
 ```text
 DMLIMA / 123456
-VICTOR / 123456
+VITOR / 123456
 ALEX / 123456
+RAFAEL / 123456
+JESSICA / 123456
 ```
 
 Depois do login, o portal exibe o dashboard por empresa. `MHLOG` e `MH BRASIL` sao empresas/clientes, nao usuarios de acesso.
 
-`ALEX` usa perfil de consulta: pode visualizar e baixar relatorios, mas nao pode incluir, editar, pagar, importar ou excluir contas.
+Perfis:
+
+- `DMLIMA`: administrador, com acesso a tudo.
+- `VITOR`: estagiario.
+- `ALEX`: dono da empresa, perfil de consulta.
+- `RAFAEL` e `JESSICA`: socios da empresa, perfil de consulta.
+
+Perfis de consulta podem visualizar e baixar relatorios, mas nao podem incluir, duplicar, editar, pagar, importar ou excluir contas.
 
 ## Publicação No Streamlit Community Cloud
 

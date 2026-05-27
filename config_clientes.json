@@ -3,16 +3,16 @@
     {
       "usuario": "DMLIMA",
       "senha": "123456",
-      "perfil": "operador",
+      "perfil": "administrador",
       "empresas": [
         "MHLOG",
         "MH BRASIL"
       ]
     },
     {
-      "usuario": "VICTOR",
+      "usuario": "VITOR",
       "senha": "123456",
-      "perfil": "operador",
+      "perfil": "estagiario",
       "empresas": [
         "MHLOG",
         "MH BRASIL"
@@ -21,7 +21,25 @@
     {
       "usuario": "ALEX",
       "senha": "123456",
-      "perfil": "consulta",
+      "perfil": "dono",
+      "empresas": [
+        "MHLOG",
+        "MH BRASIL"
+      ]
+    },
+    {
+      "usuario": "RAFAEL",
+      "senha": "123456",
+      "perfil": "socio",
+      "empresas": [
+        "MHLOG",
+        "MH BRASIL"
+      ]
+    },
+    {
+      "usuario": "JESSICA",
+      "senha": "123456",
+      "perfil": "socio",
       "empresas": [
         "MHLOG",
         "MH BRASIL"

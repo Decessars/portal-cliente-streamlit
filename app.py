@@ -698,9 +698,11 @@ def renderizar_metricas(cards: list[dict[str, object]]) -> None:
 def criar_config_demo() -> dict:
     config = {
         "usuarios": [
-            {"usuario": "DMLIMA", "senha": "123456", "perfil": "operador", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "VICTOR", "senha": "123456", "perfil": "operador", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "ALEX", "senha": "123456", "perfil": "consulta", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "DMLIMA", "senha": "123456", "perfil": "administrador", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "VITOR", "senha": "123456", "perfil": "estagiario", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "ALEX", "senha": "123456", "perfil": "dono", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "RAFAEL", "senha": "123456", "perfil": "socio", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "JESSICA", "senha": "123456", "perfil": "socio", "empresas": ["MHLOG", "MH BRASIL"]},
         ],
         "clientes": [
             {"empresa": "MHLOG"},
@@ -1301,7 +1303,16 @@ def perfil_do_usuario(config: dict, usuario: str) -> str:
 
 
 def usuario_pode_alterar(config: dict, usuario: str) -> bool:
-    return perfil_do_usuario(config, usuario) not in {"consulta", "consultor", "visualizacao", "visualização", "somente_consulta"}
+    return perfil_do_usuario(config, usuario) not in {
+        "consulta",
+        "consultor",
+        "visualizacao",
+        "visualização",
+        "somente_consulta",
+        "dono",
+        "socio",
+        "sócio",
+    }
 
 
 def empresas_do_usuario(config: dict, usuario: str) -> list[str]:
