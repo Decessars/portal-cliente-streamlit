@@ -350,6 +350,14 @@ def configurar_pagina() -> None:
                 min-width: 0;
                 box-shadow: 0 6px 18px rgba(23, 51, 38, 0.07);
             }}
+            .metric-card-critico {{
+                border-color: rgba(220, 38, 38, 0.38);
+                background: rgba(220, 38, 38, 0.06);
+            }}
+            .metric-card-alerta {{
+                border-color: rgba(183, 121, 31, 0.38);
+                background: rgba(183, 121, 31, 0.07);
+            }}
             .metric-label {{
                 color: var(--mh-muted);
                 font-size: 0.9rem;
@@ -363,6 +371,15 @@ def configurar_pagina() -> None:
                 font-weight: 500;
                 white-space: nowrap;
             }}
+            .metric-card-critico .metric-label,
+            .metric-card-critico .metric-value {{
+                color: var(--mh-danger);
+                font-weight: 700;
+            }}
+            .metric-card-alerta .metric-label,
+            .metric-card-alerta .metric-value {{
+                color: var(--mh-warning);
+            }}
             .metric-delta {{
                 display: inline-flex;
                 align-items: center;
@@ -374,6 +391,14 @@ def configurar_pagina() -> None:
                 padding: 0.12rem 0.45rem;
                 font-size: 0.85rem;
                 font-weight: 800;
+            }}
+            .metric-card-critico .metric-delta {{
+                background: rgba(220, 38, 38, 0.12);
+                color: var(--mh-danger);
+            }}
+            .metric-card-alerta .metric-delta {{
+                background: rgba(183, 121, 31, 0.13);
+                color: var(--mh-warning);
             }}
             .login-logo {{
                 display: flex;
@@ -655,9 +680,11 @@ def renderizar_metricas(cards: list[dict[str, object]]) -> None:
         classe_linha = "metric-row-top" if indice_linha == 0 else "metric-row-bottom"
         for card in cards_linha:
             delta = card.get("delta")
+            nivel = str(card.get("nivel", "") or "").strip().lower()
+            classe_card = f" metric-card-{nivel}" if nivel in {"critico", "alerta"} else ""
             delta_html = f'<div class="metric-delta">↑ {escape(str(delta))}</div>' if delta is not None else ""
             itens.append(
-                '<div class="metric-card">'
+                f'<div class="metric-card{classe_card}">'
                 f'<div class="metric-label">{escape(str(card["label"]))}</div>'
                 f'<div class="metric-value">{escape(str(card["value"]))}</div>'
                 f"{delta_html}"
@@ -2400,9 +2427,24 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str, config: 
     renderizar_metricas(
         [
             {"label": "Total a pagar", "value": formatar_moeda_br(total_aberto)},
-            {"label": "Vencidas", "value": formatar_moeda_br(vencidas["valor"].sum()), "delta": int(len(vencidas))},
-            {"label": "Vence hoje", "value": formatar_moeda_br(vence_hoje["valor"].sum()), "delta": int(len(vence_hoje))},
-            {"label": "Proximos 7 dias", "value": formatar_moeda_br(proximos_7["valor"].sum()), "delta": int(len(proximos_7))},
+            {
+                "label": "Vencidas",
+                "value": formatar_moeda_br(vencidas["valor"].sum()),
+                "delta": int(len(vencidas)),
+                "nivel": "critico" if len(vencidas) else "",
+            },
+            {
+                "label": "Vence hoje",
+                "value": formatar_moeda_br(vence_hoje["valor"].sum()),
+                "delta": int(len(vence_hoje)),
+                "nivel": "alerta" if len(vence_hoje) else "",
+            },
+            {
+                "label": "Proximos 7 dias",
+                "value": formatar_moeda_br(proximos_7["valor"].sum()),
+                "delta": int(len(proximos_7)),
+                "nivel": "alerta" if len(proximos_7) else "",
+            },
             {"label": "Contas em aberto", "value": int(len(contas))},
             {"label": "No prazo", "value": int(len(abertas_no_prazo))},
             {
