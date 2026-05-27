@@ -1,0 +1,22 @@
+{
+  "clientes": [
+    {
+      "empresa": "Empresa Modelo LTDA",
+      "senha": "demo123",
+      "competencias": [
+        "2026-01",
+        "2026-02",
+        "2026-03"
+      ]
+    },
+    {
+      "empresa": "Comercio Exemplo SA",
+      "senha": "cliente456",
+      "competencias": [
+        "2026-01",
+        "2026-02",
+        "2026-03"
+      ]
+    }
+  ]
+}

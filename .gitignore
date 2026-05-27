@@ -1,0 +1,12 @@
+__pycache__/
+.venv/
+*.log
+.env
+.streamlit/secrets.toml
+*.py[cod]
+venv/
+env/
+.DS_Store
+Thumbs.db
+desktop.ini
+data/dados_portal.csv
