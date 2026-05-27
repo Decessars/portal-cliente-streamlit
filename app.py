@@ -141,6 +141,11 @@ def configurar_pagina() -> None:
                 background: linear-gradient(180deg, #ffffff 0%, var(--mh-panel-soft) 100%);
                 border-right: 1px solid var(--mh-border);
             }}
+            [data-testid="stSidebar"] img {{
+                max-width: 132px;
+                display: block;
+                margin: 0 auto 0.75rem;
+            }}
             .main .block-container {{
                 padding-top: 1.25rem;
                 padding-bottom: 2rem;
@@ -353,6 +358,10 @@ def configurar_pagina() -> None:
                 [data-testid="stSidebar"] {{
                     border-right: 0;
                     border-bottom: 1px solid var(--mh-border);
+                }}
+                [data-testid="stSidebar"] img {{
+                    max-width: 104px;
+                    margin-bottom: 0.45rem;
                 }}
                 .portal-header {{
                     align-items: flex-start;
@@ -940,16 +949,16 @@ def exibir_menu_contabil() -> None:
 
 def sidebar_filtros(config: dict) -> tuple[str, str]:
     if LOGO_FULL_PATH.exists():
-        st.sidebar.image(str(LOGO_FULL_PATH), width=210)
-    st.sidebar.title("Sessao")
+        st.sidebar.image(str(LOGO_FULL_PATH), width=120)
 
     usuario = st.session_state.get("usuario_logado", "")
     empresa = st.session_state.get("empresa_logada", "")
 
+    exibir_menu_contabil()
+    st.sidebar.divider()
+    st.sidebar.title("Sessao")
     st.sidebar.text_input("Usuario", value=usuario, disabled=True)
     st.sidebar.text_input("Empresa", value=empresa, disabled=True)
-    st.sidebar.divider()
-    exibir_menu_contabil()
     st.sidebar.divider()
     st.sidebar.success("Acesso liberado")
     st.sidebar.button("Trocar empresa", use_container_width=True, on_click=voltar_dashboard_empresas)
@@ -962,7 +971,18 @@ def dashboard_empresas(config: dict, df: pd.DataFrame) -> None:
     empresas = empresas_do_usuario(config, usuario)
 
     if LOGO_FULL_PATH.exists():
-        st.sidebar.image(str(LOGO_FULL_PATH), width=210)
+        st.sidebar.image(str(LOGO_FULL_PATH), width=120)
+    st.sidebar.markdown(
+        """
+        <div class="menu-contabil-titulo">Menu contábil</div>
+        <div class="menu-contabil-ajuda">Escolha uma empresa para liberar os módulos.</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    for modulo in MODULOS_CONTABEIS:
+        label = modulo["titulo"] if modulo["ativo"] else f"{modulo['titulo']} - em breve"
+        st.sidebar.button(label, key=f"dashboard_menu_{modulo['id']}", use_container_width=True, disabled=True)
+    st.sidebar.divider()
     st.sidebar.title("Sessao")
     st.sidebar.text_input("Usuario", value=usuario, disabled=True)
     st.sidebar.button("Sair", use_container_width=True, on_click=logout)
