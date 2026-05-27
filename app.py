@@ -1168,13 +1168,12 @@ def conta_vencida(linha: pd.Series) -> bool:
     return vencimento.date() < datetime.now().date()
 
 
-def escrever_celula_conta(coluna: object, texto: str, vencida: bool) -> None:
-    if not vencida:
-        coluna.write(texto)
-        return
-
+def escrever_celula_conta(coluna: object, texto: str, vencida: bool, nowrap: bool = False) -> None:
+    cor = "#b91c1c" if vencida else "inherit"
+    peso = "700" if vencida else "400"
+    quebra = "white-space:nowrap;" if nowrap else "overflow-wrap:anywhere;"
     coluna.markdown(
-        f'<span style="color:#b91c1c;font-weight:700;">{escape(texto)}</span>',
+        f'<span style="color:{cor};font-weight:{peso};{quebra}">{escape(texto)}</span>',
         unsafe_allow_html=True,
     )
 
@@ -1244,18 +1243,19 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
         return
 
     contas = contas_exibidas.sort_values(["vencimento_dt", "descricao"], na_position="last").copy()
-    cabecalho = st.columns([1, 2.2, 2.2, 1.1, 1, 1.2, 1.5])
+    larguras = [1.35, 2.4, 2.25, 1.25, 1, 1.35, 1.45]
+    cabecalho = st.columns(larguras)
     for col, label in zip(cabecalho, ["Vencimento", "Descrição", "Fornecedor", "Valor", "Status", "Documento", "Ações"]):
         col.caption(label)
 
     for indice, linha in contas.iterrows():
         vencida = conta_vencida(linha)
-        cols = st.columns([1, 2.2, 2.2, 1.1, 1, 1.2, 1.5])
-        escrever_celula_conta(cols[0], formatar_data_br(linha.get("vencimento")), vencida)
+        cols = st.columns(larguras)
+        escrever_celula_conta(cols[0], formatar_data_br(linha.get("vencimento")), vencida, nowrap=True)
         escrever_celula_conta(cols[1], str(linha.get("descricao", "")), vencida)
         escrever_celula_conta(cols[2], str(linha.get("fornecedor_cliente", "")), vencida)
-        escrever_celula_conta(cols[3], formatar_moeda_br(float(linha.get("valor", 0) or 0)), vencida)
-        escrever_celula_conta(cols[4], "vencido" if vencida else str(linha.get("status", "")), vencida)
+        escrever_celula_conta(cols[3], formatar_moeda_br(float(linha.get("valor", 0) or 0)), vencida, nowrap=True)
+        escrever_celula_conta(cols[4], "vencido" if vencida else str(linha.get("status", "")), vencida, nowrap=True)
         escrever_celula_conta(cols[5], str(linha.get("documento", "")), vencida)
         acao_cols = cols[6].columns(3)
         if acao_cols[0].button("✏️", key=f"editar_{indice}", help="Editar conta"):
