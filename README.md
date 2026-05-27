@@ -20,6 +20,21 @@ Depois acesse:
 http://localhost:8501
 ```
 
+No Windows, tambem ha dois atalhos na pasta do projeto:
+
+- `Iniciar Portal Local.bat`: inicia o Streamlit localmente.
+- `Abrir Portal Local.url`: abre `http://localhost:8501` no navegador.
+
+## Acessos De Teste
+
+Use estes acessos demonstrativos para testar:
+
+```text
+DMLIMA / 123456
+VICTOR / 123456
+MHLOG  / 123456
+```
+
 ## Publicação No Streamlit Community Cloud
 
 1. Crie um repositório no GitHub.

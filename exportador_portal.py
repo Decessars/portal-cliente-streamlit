@@ -115,7 +115,7 @@ def gerar_dados_demo_portal() -> pd.DataFrame:
     """Gera uma base pequena para testes do formato de exportacao."""
     registros = [
         {
-            "empresa": "Empresa Modelo LTDA",
+            "empresa": "DMLIMA",
             "competencia": "2026-01",
             "tipo": "conta_a_pagar",
             "descricao": "Aluguel da sede",
@@ -126,10 +126,10 @@ def gerar_dados_demo_portal() -> pd.DataFrame:
             "status": "aberto",
             "categoria": "Administrativo",
             "observacao": "Registro demonstrativo para testes",
-            "documento": "AP-2026-001",
+            "documento": "AP-DML-001",
         },
         {
-            "empresa": "Empresa Modelo LTDA",
+            "empresa": "DMLIMA",
             "competencia": "2026-01",
             "tipo": "receita",
             "descricao": "Servicos de consultoria",
@@ -140,10 +140,10 @@ def gerar_dados_demo_portal() -> pd.DataFrame:
             "status": "recebido",
             "categoria": "Receita operacional",
             "observacao": "Registro demonstrativo para testes",
-            "documento": "NF-1001",
+            "documento": "NF-DML-001",
         },
         {
-            "empresa": "Empresa Modelo LTDA",
+            "empresa": "DMLIMA",
             "competencia": "2026-01",
             "tipo": "relatorio",
             "descricao": "Balancete mensal",
@@ -154,7 +154,7 @@ def gerar_dados_demo_portal() -> pd.DataFrame:
             "status": "disponível",
             "categoria": "Relatorios contabeis",
             "observacao": "Documento demonstrativo disponivel",
-            "documento": "REL-2026-001",
+            "documento": "REL-DML-001",
         },
     ]
     return normalizar_colunas_portal(pd.DataFrame(registros))

@@ -345,7 +345,7 @@ def mostrar_cabecalho(empresa: str, competencia: str, status_geral: str, status_
                 </div>
             </div>
             <div class="portal-meta">
-                <div class="meta-pill"><span>Empresa</span>{escape(empresa)}</div>
+                <div class="meta-pill"><span>Cliente</span>{escape(empresa)}</div>
                 <div class="meta-pill"><span>Competência</span>{escape(competencia)}</div>
                 <div class="meta-pill {status_classe}"><span>Status</span>{escape(status_geral)}</div>
             </div>
@@ -361,13 +361,18 @@ def criar_config_demo() -> dict:
     config = {
         "clientes": [
             {
-                "empresa": "Empresa Modelo LTDA",
-                "senha": "demo123",
+                "empresa": "DMLIMA",
+                "senha": "123456",
                 "competencias": ["2026-01", "2026-02", "2026-03"],
             },
             {
-                "empresa": "Comercio Exemplo SA",
-                "senha": "cliente456",
+                "empresa": "VICTOR",
+                "senha": "123456",
+                "competencias": ["2026-01", "2026-02", "2026-03"],
+            },
+            {
+                "empresa": "MHLOG",
+                "senha": "123456",
                 "competencias": ["2026-01", "2026-02", "2026-03"],
             },
         ]
@@ -386,26 +391,27 @@ def carregar_config() -> dict:
 
 def dados_demo() -> pd.DataFrame:
     registros = [
-        ["Empresa Modelo LTDA", "2026-01", "conta_a_pagar", "Aluguel da sede", "Imobiliaria Central", "2026-01-10", "", 3200.00, "aberto", "Administrativo", "Pagamento recorrente mensal", "AP-2026-001"],
-        ["Empresa Modelo LTDA", "2026-01", "conta_a_pagar", "Energia eletrica", "Companhia de Energia", "2026-01-18", "", 860.45, "vencido", "Despesas fixas", "Conferir segunda via", "AP-2026-002"],
-        ["Empresa Modelo LTDA", "2026-01", "conta_paga", "Internet corporativa", "Telecom Brasil", "2026-01-08", "2026-01-07", 349.90, "pago", "Despesas fixas", "Pago via debito automatico", "PG-2026-001"],
-        ["Empresa Modelo LTDA", "2026-01", "receita", "Servicos de consultoria", "Cliente Alfa", "2026-01-15", "2026-01-15", 12500.00, "recebido", "Receita operacional", "Nota fiscal emitida", "NF-1001"],
-        ["Empresa Modelo LTDA", "2026-01", "imposto", "DAS Simples Nacional", "Receita Federal", "2026-02-20", "", 1480.00, "pendente", "Tributos", "Guia em preparacao", "IMP-2026-001"],
-        ["Empresa Modelo LTDA", "2026-01", "relatorio", "Balancete mensal", "Escritorio Contabil", "2026-01-31", "", 0.00, "disponível", "Relatorios contabeis", "PDF disponivel no portal", "REL-2026-001"],
-        ["Empresa Modelo LTDA", "2026-02", "conta_a_pagar", "Licenca de software", "SaaS Financeiro", "2026-02-12", "", 590.00, "aberto", "Tecnologia", "Renovacao mensal", "AP-2026-003"],
-        ["Empresa Modelo LTDA", "2026-02", "conta_paga", "Honorarios contabeis", "Escritorio Contabil", "2026-02-05", "2026-02-05", 980.00, "pago", "Contabilidade", "Pagamento confirmado", "PG-2026-002"],
-        ["Empresa Modelo LTDA", "2026-02", "receita", "Mensalidade contrato Beta", "Cliente Beta", "2026-02-20", "2026-02-19", 8700.00, "recebido", "Receita recorrente", "Recebido por PIX", "NF-1035"],
-        ["Empresa Modelo LTDA", "2026-02", "imposto", "INSS folha", "Receita Federal", "2026-03-20", "", 2100.00, "pendente", "Folha", "Valor estimado", "IMP-2026-002"],
-        ["Empresa Modelo LTDA", "2026-02", "relatorio", "DRE gerencial", "Escritorio Contabil", "2026-02-28", "", 0.00, "disponível", "Relatorios gerenciais", "Demonstrativo para reuniao mensal", "REL-2026-002"],
-        ["Comercio Exemplo SA", "2026-01", "conta_a_pagar", "Compra de mercadorias", "Distribuidora Prime", "2026-01-22", "", 6900.00, "aberto", "Estoque", "Boleto aguardando aprovacao", "AP-2026-101"],
-        ["Comercio Exemplo SA", "2026-01", "conta_paga", "Frete de entregas", "Transportes Rapidos", "2026-01-11", "2026-01-11", 780.00, "pago", "Logistica", "Pago por transferencia", "PG-2026-101"],
-        ["Comercio Exemplo SA", "2026-01", "receita", "Vendas no varejo", "Clientes diversos", "2026-01-31", "2026-01-31", 22400.00, "recebido", "Vendas", "Consolidado demonstrativo", "REC-2026-101"],
-        ["Comercio Exemplo SA", "2026-01", "imposto", "ICMS apuracao", "Secretaria da Fazenda", "2026-02-12", "", 3260.00, "pendente", "Tributos estaduais", "Aguardando guia", "IMP-2026-101"],
-        ["Comercio Exemplo SA", "2026-01", "relatorio", "Resumo fiscal", "Escritorio Contabil", "2026-01-31", "", 0.00, "disponível", "Relatorios fiscais", "Arquivo demonstrativo", "REL-2026-101"],
-        ["Comercio Exemplo SA", "2026-02", "conta_a_pagar", "Manutencao loja", "Servicos Prediais", "2026-02-16", "", 1450.00, "aberto", "Operacional", "Servico aprovado", "AP-2026-102"],
-        ["Comercio Exemplo SA", "2026-02", "conta_paga", "Sistema de vendas", "PDV Cloud", "2026-02-09", "2026-02-08", 420.00, "pago", "Tecnologia", "Assinatura mensal", "PG-2026-102"],
-        ["Comercio Exemplo SA", "2026-02", "receita", "Vendas online", "Marketplace", "2026-02-28", "2026-02-28", 18100.00, "recebido", "E-commerce", "Repasse liquido demonstrativo", "REC-2026-102"],
-        ["Comercio Exemplo SA", "2026-02", "imposto", "PIS/COFINS", "Receita Federal", "2026-03-25", "", 1980.00, "pendente", "Tributos federais", "Valor sujeito a revisao", "IMP-2026-102"],
+        ["DMLIMA", "2026-01", "conta_a_pagar", "Aluguel da sede", "Imobiliaria Central", "2026-01-10", "", 3200.00, "aberto", "Administrativo", "Pagamento recorrente mensal", "AP-DML-001"],
+        ["DMLIMA", "2026-01", "conta_paga", "Internet corporativa", "Telecom Brasil", "2026-01-08", "2026-01-07", 349.90, "pago", "Despesas fixas", "Pago via debito automatico", "PG-DML-001"],
+        ["DMLIMA", "2026-01", "receita", "Servicos de consultoria", "Cliente Alfa", "2026-01-15", "2026-01-15", 12500.00, "recebido", "Receita operacional", "Nota fiscal emitida", "NF-DML-001"],
+        ["DMLIMA", "2026-01", "imposto", "DAS Simples Nacional", "Receita Federal", "2026-02-20", "", 1480.00, "pendente", "Tributos", "Guia em preparacao", "IMP-DML-001"],
+        ["DMLIMA", "2026-01", "relatorio", "Balancete mensal", "Escritorio Contabil", "2026-01-31", "", 0.00, "disponível", "Relatorios contabeis", "PDF disponivel no portal", "REL-DML-001"],
+        ["DMLIMA", "2026-02", "conta_a_pagar", "Licenca de software", "SaaS Financeiro", "2026-02-12", "", 590.00, "aberto", "Tecnologia", "Renovacao mensal", "AP-DML-002"],
+        ["DMLIMA", "2026-02", "receita", "Mensalidade contrato Beta", "Cliente Beta", "2026-02-20", "2026-02-19", 8700.00, "recebido", "Receita recorrente", "Recebido por PIX", "NF-DML-002"],
+        ["VICTOR", "2026-01", "conta_a_pagar", "Compra de mercadorias", "Distribuidora Prime", "2026-01-22", "", 6900.00, "aberto", "Estoque", "Boleto aguardando aprovacao", "AP-VIC-001"],
+        ["VICTOR", "2026-01", "conta_paga", "Frete de entregas", "Transportes Rapidos", "2026-01-11", "2026-01-11", 780.00, "pago", "Logistica", "Pago por transferencia", "PG-VIC-001"],
+        ["VICTOR", "2026-01", "receita", "Vendas no varejo", "Clientes diversos", "2026-01-31", "2026-01-31", 22400.00, "recebido", "Vendas", "Consolidado demonstrativo", "REC-VIC-001"],
+        ["VICTOR", "2026-01", "imposto", "ICMS apuracao", "Secretaria da Fazenda", "2026-02-12", "", 3260.00, "pendente", "Tributos estaduais", "Aguardando guia", "IMP-VIC-001"],
+        ["VICTOR", "2026-01", "relatorio", "Resumo fiscal", "Escritorio Contabil", "2026-01-31", "", 0.00, "disponível", "Relatorios fiscais", "Arquivo demonstrativo", "REL-VIC-001"],
+        ["VICTOR", "2026-02", "conta_a_pagar", "Manutencao loja", "Servicos Prediais", "2026-02-16", "", 1450.00, "aberto", "Operacional", "Servico aprovado", "AP-VIC-002"],
+        ["VICTOR", "2026-02", "receita", "Vendas online", "Marketplace", "2026-02-28", "2026-02-28", 18100.00, "recebido", "E-commerce", "Repasse liquido demonstrativo", "REC-VIC-002"],
+        ["MHLOG", "2026-01", "conta_a_pagar", "Energia eletrica", "Companhia de Energia", "2026-01-18", "", 860.45, "vencido", "Despesas fixas", "Conferir segunda via", "AP-MHL-001"],
+        ["MHLOG", "2026-01", "conta_paga", "Honorarios contabeis", "Escritorio Contabil", "2026-01-05", "2026-01-05", 980.00, "pago", "Contabilidade", "Pagamento confirmado", "PG-MHL-001"],
+        ["MHLOG", "2026-01", "receita", "Servicos logisticos", "Cliente Operacional", "2026-01-30", "2026-01-30", 28600.00, "recebido", "Receita operacional", "Consolidado demonstrativo", "REC-MHL-001"],
+        ["MHLOG", "2026-01", "imposto", "PIS/COFINS", "Receita Federal", "2026-02-25", "", 1980.00, "pendente", "Tributos federais", "Valor sujeito a revisao", "IMP-MHL-001"],
+        ["MHLOG", "2026-01", "relatorio", "DRE gerencial", "Escritorio Contabil", "2026-01-31", "", 0.00, "disponível", "Relatorios gerenciais", "Demonstrativo para reuniao mensal", "REL-MHL-001"],
+        ["MHLOG", "2026-02", "conta_a_pagar", "Manutencao de frota", "Oficina Parceira", "2026-02-19", "", 2250.00, "aberto", "Operacional", "Servico aprovado", "AP-MHL-002"],
+        ["MHLOG", "2026-02", "receita", "Contrato mensal transporte", "Cliente Logistico", "2026-02-28", "2026-02-28", 31400.00, "recebido", "Receita recorrente", "Recebido por transferencia", "REC-MHL-002"],
     ]
     return pd.DataFrame(registros, columns=COLUNAS_DADOS)
 
@@ -509,7 +515,7 @@ def tela_login(config: dict) -> None:
                 <span class="login-badge">Acesso restrito</span>
                 <h2>Portal Contábil do Cliente</h2>
                 <p>Consulte informações contábeis e financeiras liberadas pelo escritório.</p>
-                <p>Use a empresa, competência e senha de acesso fornecidas pela equipe.</p>
+                <p>Use o usuário, competência e senha de acesso fornecidos pela equipe.</p>
             </section>
             """,
             unsafe_allow_html=True,
@@ -520,7 +526,7 @@ def tela_login(config: dict) -> None:
             st.subheader("Entrar no portal")
             st.caption("Informe seus dados para continuar.")
             with st.form("form_login", clear_on_submit=False):
-                empresa = st.selectbox("Empresa", empresas, index=empresa_idx)
+                empresa = st.selectbox("Usuário", empresas, index=empresa_idx)
                 cliente_atual = obter_cliente(config, empresa)
                 competencias = cliente_atual.get("competencias", [])
                 competencia = st.selectbox("Competência", competencias)
@@ -535,7 +541,7 @@ def tela_login(config: dict) -> None:
                     st.session_state.empresa_login = empresa
                     st.rerun()
                 else:
-                    st.error("Empresa, competência ou senha inválida.")
+                    st.error("Usuário, competência ou senha inválida.")
 
 
 def logout() -> None:
@@ -556,7 +562,7 @@ def sidebar_filtros(config: dict) -> tuple[str, str]:
     competencia_atual = st.session_state.get("competencia_logada", "")
     competencia_idx = competencias.index(competencia_atual) if competencia_atual in competencias else 0
 
-    st.sidebar.text_input("Empresa", value=empresa, disabled=True)
+    st.sidebar.text_input("Usuário", value=empresa, disabled=True)
     competencia = st.sidebar.selectbox("Competência", competencias, index=competencia_idx)
     st.session_state.competencia_logada = competencia
     st.sidebar.divider()

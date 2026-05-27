@@ -1,8 +1,8 @@
 {
   "clientes": [
     {
-      "empresa": "Empresa Modelo LTDA",
-      "senha": "demo123",
+      "empresa": "DMLIMA",
+      "senha": "123456",
       "competencias": [
         "2026-01",
         "2026-02",
@@ -10,8 +10,17 @@
       ]
     },
     {
-      "empresa": "Comercio Exemplo SA",
-      "senha": "cliente456",
+      "empresa": "VICTOR",
+      "senha": "123456",
+      "competencias": [
+        "2026-01",
+        "2026-02",
+        "2026-03"
+      ]
+    },
+    {
+      "empresa": "MHLOG",
+      "senha": "123456",
       "competencias": [
         "2026-01",
         "2026-02",
