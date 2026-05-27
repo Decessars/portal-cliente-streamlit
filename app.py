@@ -1551,7 +1551,7 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
     with st.form("form_conta_a_pagar", clear_on_submit=True):
         c3, c4, c5 = st.columns([1, 1, 1])
-        vencimento = c3.date_input("Vencimento")
+        vencimento = c3.date_input("Vencimento", format="DD/MM/YYYY")
         valor_texto = c4.text_input("Valor", placeholder="Ex.: 1.000,00")
         status = c5.selectbox("Status", ["aberto", "pendente", "vencido"])
 
@@ -1686,7 +1686,7 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
         fornecedor = c2.text_input("Fornecedor", value=str(linha.get("fornecedor_cliente", "")))
 
         c3, c4, c5 = st.columns([1, 1, 1])
-        vencimento = c3.date_input("Vencimento", value=vencimento_atual.date())
+        vencimento = c3.date_input("Vencimento", value=vencimento_atual.date(), format="DD/MM/YYYY")
         valor_texto = c4.text_input(
             "Valor",
             value=formatar_moeda_br(float(linha.get("valor", 0) or 0)).replace("R$ ", ""),
