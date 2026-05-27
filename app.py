@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import time
 import unicodedata
 from datetime import datetime
 from html import escape
@@ -792,6 +793,14 @@ def formatar_data_br(valor: object) -> str:
 
 def agora_br() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def sucesso_temporario(mensagem: str, segundos: float = 1.5) -> None:
+    aviso = st.empty()
+    aviso.success(mensagem)
+    time.sleep(segundos)
+    aviso.empty()
+    st.rerun()
 
 
 def gerar_csv_download(df: pd.DataFrame) -> bytes:
@@ -1678,16 +1687,14 @@ def exibir_contas_com_acoes(
             try:
                 df_atualizado = marcar_conta_como_paga(df_base, indice, usuario)
                 salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
-                st.success("Conta marcada como paga.")
-                st.rerun()
+                sucesso_temporario("Salvo com sucesso.")
             except ValueError as erro:
                 st.error(str(erro))
         if acao_cols[2].button("🗑️", key=f"excluir_{indice}", help="Excluir conta"):
             try:
                 df_atualizado = excluir_conta_a_pagar(df_base, indice, usuario)
                 salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
-                st.success("Conta excluída da lista ativa.")
-                st.rerun()
+                sucesso_temporario("Salvo com sucesso.")
             except ValueError as erro:
                 st.error(str(erro))
 
@@ -1968,8 +1975,7 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     }
     df_atualizado = adicionar_conta_a_pagar(df, empresa, usuario, dados_formulario)
     salvar_dados_empresa(df_atualizado, empresa)
-    st.success("Conta a pagar incluida com sucesso.")
-    st.rerun()
+    sucesso_temporario("Salvo com sucesso.")
 
 def importacao_massa_contas(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### Importar contas por CSV")
@@ -2013,8 +2019,7 @@ def importacao_massa_contas(df: pd.DataFrame, empresa: str, usuario: str) -> Non
 
     df_atualizado = pd.concat([df, novas_contas], ignore_index=True)
     salvar_dados_empresa(df_atualizado, empresa)
-    st.success(f"{len(novas_contas)} conta(s) importada(s) com sucesso.")
-    st.rerun()
+    sucesso_temporario(f"{len(novas_contas)} conta(s) salva(s) com sucesso.")
 
 
 def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str, key_prefix: str) -> None:
@@ -2123,8 +2128,7 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
 
     salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
     st.session_state.pop("conta_edicao_indice", None)
-    st.success("Conta a pagar atualizada com sucesso.")
-    st.rerun()
+    sucesso_temporario("Salvo com sucesso.")
 
 
 if hasattr(st, "dialog"):
@@ -2186,8 +2190,7 @@ def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario:
 
         df_atualizado = excluir_conta_a_pagar(df, opcoes[selecionada], usuario)
         salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
-        st.success("Conta a pagar excluída da lista ativa.")
-        st.rerun()
+        sucesso_temporario("Salvo com sucesso.")
 
 
 def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str, config: dict) -> None:
