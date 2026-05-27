@@ -747,6 +747,21 @@ def carregar_config() -> dict:
         return normalizar_config(json.load(arquivo))
 
 
+def salvar_config(config: dict) -> None:
+    CONFIG_PATH.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def atualizar_senha_usuario(config: dict, usuario: str, nova_senha: str) -> dict:
+    usuario_normalizado = usuario.strip().upper()
+    config_atualizado = normalizar_config(config.copy())
+    for item in config_atualizado["usuarios"]:
+        if item.get("usuario", "").strip().upper() == usuario_normalizado:
+            item["senha"] = nova_senha
+            salvar_config(config_atualizado)
+            return config_atualizado
+    raise ValueError("Usuario nao encontrado para troca de senha.")
+
+
 def dados_demo() -> pd.DataFrame:
     return pd.DataFrame(columns=COLUNAS_DADOS)
 
@@ -1329,6 +1344,8 @@ def inicializar_sessao() -> None:
     st.session_state.setdefault("usuario_logado", "")
     st.session_state.setdefault("empresa_logada", "")
     st.session_state.setdefault("modulo_atual", "contas_a_pagar")
+    st.session_state.setdefault("exibir_troca_senha_padrao", False)
+    st.session_state.setdefault("senha_padrao_mantida", False)
 
 
 def tela_login(config: dict) -> None:
@@ -1448,15 +1465,63 @@ def tela_login(config: dict) -> None:
                     st.session_state.usuario_logado = usuario
                     st.session_state.usuario_login = usuario
                     st.session_state.empresa_logada = ""
+                    st.session_state.exibir_troca_senha_padrao = senha == "123456"
+                    st.session_state.senha_padrao_mantida = False
                     st.rerun()
                 else:
                     st.error("Usuario ou senha invalida.")
+
+
+def tela_troca_senha_padrao(config: dict) -> None:
+    usuario = st.session_state.get("usuario_logado", "")
+    st.warning("Sua senha atual ainda é a senha padrão 123456. Por segurança, recomendamos trocar agora.")
+    st.info("Você pode trocar a senha ou escolher permanecer com ela. A senha fica registrada no controle do portal para o administrador DMLIMA.")
+
+    with st.form("form_troca_senha_padrao"):
+        nova_senha = st.text_input("Nova senha", type="password")
+        confirmar_senha = st.text_input("Confirmar nova senha", type="password")
+        col1, col2 = st.columns(2)
+        trocar = col1.form_submit_button("Trocar senha", use_container_width=True)
+        manter = col2.form_submit_button("Permanecer com 123456", use_container_width=True)
+
+    if manter:
+        st.session_state.exibir_troca_senha_padrao = False
+        st.session_state.senha_padrao_mantida = True
+        st.rerun()
+
+    if not trocar:
+        st.stop()
+
+    if not nova_senha or not confirmar_senha:
+        st.error("Informe e confirme a nova senha.")
+        st.stop()
+    if nova_senha != confirmar_senha:
+        st.error("As senhas informadas nao conferem.")
+        st.stop()
+    if len(nova_senha) < 6:
+        st.error("A nova senha precisa ter pelo menos 6 caracteres.")
+        st.stop()
+    if nova_senha == "123456":
+        st.error("Escolha uma senha diferente de 123456.")
+        st.stop()
+
+    try:
+        atualizar_senha_usuario(config, usuario, nova_senha)
+    except ValueError as erro:
+        st.error(str(erro))
+        st.stop()
+
+    st.session_state.exibir_troca_senha_padrao = False
+    st.session_state.senha_padrao_mantida = False
+    sucesso_temporario("Senha alterada com sucesso.")
 
 
 def logout() -> None:
     st.session_state.autenticado = False
     st.session_state.usuario_logado = ""
     st.session_state.empresa_logada = ""
+    st.session_state.exibir_troca_senha_padrao = False
+    st.session_state.senha_padrao_mantida = False
 
 
 def voltar_dashboard_empresas() -> None:
@@ -2523,6 +2588,10 @@ def main() -> None:
 
     if not st.session_state.autenticado:
         tela_login(config)
+        st.stop()
+
+    if st.session_state.get("exibir_troca_senha_padrao"):
+        tela_troca_senha_padrao(config)
         st.stop()
 
     if not st.session_state.get("empresa_logada"):
