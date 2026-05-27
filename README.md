@@ -7,6 +7,7 @@ Nesta versão, a função principal é **Contas a Pagar**:
 - login por usuário e senha;
 - dashboard por empresa apos o login;
 - lista de contas em aberto;
+- download de contas em Excel formatado;
 - inclusão manual de contas a pagar;
 - upload de anexos, como boletos, notas fiscais e guias;
 - exclusão lógica de contas, preservando auditoria;
@@ -43,6 +44,7 @@ Use estes acessos demonstrativos para testar:
 ```text
 DMLIMA / 123456
 VICTOR / 123456
+ALEX / 123456
 ```
 
 Depois do login, o portal exibe o dashboard por empresa. `MHLOG` e `MH BRASIL` sao empresas/clientes, nao usuarios de acesso.

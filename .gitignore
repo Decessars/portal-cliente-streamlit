@@ -12,3 +12,5 @@ desktop.ini
 data/dados_portal.csv
 data/empresas/
 data/anexos/
+deploy_streamlit_*/
+deploy_streamlit_*.zip

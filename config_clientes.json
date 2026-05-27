@@ -15,6 +15,14 @@
         "MHLOG",
         "MH BRASIL"
       ]
+    },
+    {
+      "usuario": "ALEX",
+      "senha": "123456",
+      "empresas": [
+        "MHLOG",
+        "MH BRASIL"
+      ]
     }
   ],
   "clientes": [

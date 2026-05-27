@@ -6,10 +6,15 @@ import re
 import unicodedata
 from datetime import datetime
 from html import escape
+from io import BytesIO
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
 
 BASE_DIR = Path(__file__).parent
@@ -764,6 +769,7 @@ def salvar_dados_empresa(df: pd.DataFrame, empresa: str) -> Path:
     caminho = caminho_dados_empresa(empresa)
     caminho.parent.mkdir(parents=True, exist_ok=True)
     dados = normalizar_dataframe(df)
+    dados = dados.loc[dados["empresa"].astype(str).eq(empresa)].copy()
     dados = dados[[coluna for coluna in COLUNAS_DADOS if coluna in dados.columns]].copy()
     dados.to_csv(caminho, index=False, encoding="utf-8-sig")
     return caminho
@@ -787,6 +793,160 @@ def agora_br() -> str:
 def gerar_csv_download(df: pd.DataFrame) -> bytes:
     colunas = [coluna for coluna in COLUNAS_DADOS if coluna in df.columns]
     return df[colunas].to_csv(index=False).encode("utf-8-sig")
+
+
+def gerar_excel_contas_download(df: pd.DataFrame, empresa: str) -> bytes:
+    dados = df.sort_values(["vencimento_dt", "descricao"], ascending=[False, True], na_position="last").copy()
+    hoje = pd.Timestamp(datetime.now().date())
+
+    colunas = [
+        ("vencimento", "Vencimento"),
+        ("descricao", "Descricao"),
+        ("fornecedor_cliente", "Fornecedor"),
+        ("tipo_conta_nome", "Tipo de conta"),
+        ("valor", "Valor"),
+        ("status", "Status"),
+        ("categoria", "Categoria"),
+        ("documento", "Documento"),
+        ("codigo_pagamento", "Codigo de barras / Pix"),
+        ("observacao", "Observacao"),
+        ("criado_em", "Incluido em"),
+        ("criado_por", "Incluido por"),
+    ]
+    colunas = [(campo, titulo) for campo, titulo in colunas if campo in dados.columns]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Contas a pagar"
+    ws.sheet_view.showGridLines = False
+
+    cor_titulo = "173326"
+    cor_verde = "2F8F5B"
+    cor_verde_claro = "E9F5EC"
+    cor_borda = "C8DDCE"
+    cor_alerta = "FFF7E6"
+    cor_vencida = "FEE2E2"
+    cor_texto = "173326"
+
+    ws.merge_cells("A1:L1")
+    ws["A1"] = "Contas a pagar"
+    ws["A1"].font = Font(bold=True, size=20, color=cor_titulo)
+    ws["A1"].alignment = Alignment(vertical="center")
+    ws.row_dimensions[1].height = 30
+
+    ws.merge_cells("A2:L2")
+    ws["A2"] = f"Empresa: {empresa} | Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    ws["A2"].font = Font(size=10, color="60776A")
+
+    total = float(pd.to_numeric(dados.get("valor", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+    vencidas = int(dados.apply(conta_vencida, axis=1).sum()) if not dados.empty else 0
+    vence_hoje = int((dados.get("vencimento_dt", pd.Series(dtype="datetime64[ns]")).dt.date == hoje.date()).sum()) if "vencimento_dt" in dados else 0
+    proximos_7 = 0
+    if "vencimento_dt" in dados:
+        proximos_7 = int(((dados["vencimento_dt"] > hoje) & (dados["vencimento_dt"] <= hoje + pd.Timedelta(days=7))).sum())
+
+    resumo = [
+        ("Total a pagar", total, "moeda"),
+        ("Contas abertas", len(dados), "numero"),
+        ("Vencidas", vencidas, "numero"),
+        ("Vence hoje", vence_hoje, "numero"),
+        ("Proximos 7 dias", proximos_7, "numero"),
+    ]
+    for indice, (rotulo, valor, tipo) in enumerate(resumo):
+        coluna = 1 + (indice * 2)
+        ws.merge_cells(start_row=4, start_column=coluna, end_row=4, end_column=coluna + 1)
+        ws.merge_cells(start_row=5, start_column=coluna, end_row=5, end_column=coluna + 1)
+        cel_rotulo = ws.cell(row=4, column=coluna, value=rotulo)
+        cel_valor = ws.cell(row=5, column=coluna, value=valor)
+        for linha in (4, 5):
+            cel = ws.cell(row=linha, column=coluna)
+            cel.fill = PatternFill("solid", fgColor=cor_verde_claro)
+            cel.border = Border(
+                left=Side(style="thin", color=cor_borda),
+                right=Side(style="thin", color=cor_borda),
+                top=Side(style="thin", color=cor_borda),
+                bottom=Side(style="thin", color=cor_borda),
+            )
+            cel.alignment = Alignment(horizontal="center", vertical="center")
+        cel_rotulo.font = Font(bold=True, size=9, color="60776A")
+        cel_valor.font = Font(bold=True, size=14, color=cor_titulo)
+        if tipo == "moeda":
+            cel_valor.number_format = '"R$" #,##0.00'
+
+    linha_cabecalho = 8
+    for col_idx, (_, titulo) in enumerate(colunas, start=1):
+        cel = ws.cell(row=linha_cabecalho, column=col_idx, value=titulo)
+        cel.fill = PatternFill("solid", fgColor=cor_verde)
+        cel.font = Font(bold=True, color="FFFFFF")
+        cel.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cel.border = Border(bottom=Side(style="thin", color=cor_borda))
+
+    for row_idx, (_, linha) in enumerate(dados.iterrows(), start=linha_cabecalho + 1):
+        nivel = nivel_prazo_conta(linha)
+        fill = None
+        if nivel == "vencida":
+            fill = PatternFill("solid", fgColor=cor_vencida)
+        elif nivel == "atencao":
+            fill = PatternFill("solid", fgColor=cor_alerta)
+
+        for col_idx, (campo, _) in enumerate(colunas, start=1):
+            valor = linha.get(campo, "")
+            cel = ws.cell(row=row_idx, column=col_idx)
+            if campo in {"vencimento", "criado_em"}:
+                data = pd.to_datetime(valor, errors="coerce")
+                cel.value = data.to_pydatetime() if not pd.isna(data) else ""
+                cel.number_format = "dd/mm/yyyy"
+            elif campo == "valor":
+                cel.value = float(pd.to_numeric(valor, errors="coerce") or 0)
+                cel.number_format = '"R$" #,##0.00'
+            else:
+                cel.value = str(valor or "")
+            cel.font = Font(color=cor_texto)
+            cel.alignment = Alignment(vertical="top", wrap_text=True)
+            cel.border = Border(bottom=Side(style="hair", color=cor_borda))
+            if fill:
+                cel.fill = fill
+
+    ultima_linha = max(linha_cabecalho + 1, linha_cabecalho + len(dados))
+    ultima_coluna = max(1, len(colunas))
+    tabela_ref = f"A{linha_cabecalho}:{get_column_letter(ultima_coluna)}{ultima_linha}"
+    tabela = Table(displayName="TabelaContasPagar", ref=tabela_ref)
+    tabela.tableStyleInfo = TableStyleInfo(
+        name="TableStyleMedium4",
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=True,
+        showColumnStripes=False,
+    )
+    ws.add_table(tabela)
+
+    larguras = {
+        "Vencimento": 13,
+        "Descricao": 32,
+        "Fornecedor": 28,
+        "Tipo de conta": 30,
+        "Valor": 15,
+        "Status": 14,
+        "Categoria": 20,
+        "Documento": 18,
+        "Codigo de barras / Pix": 34,
+        "Observacao": 34,
+        "Incluido em": 16,
+        "Incluido por": 14,
+    }
+    for col_idx, (_, titulo) in enumerate(colunas, start=1):
+        ws.column_dimensions[get_column_letter(col_idx)].width = larguras.get(titulo, 18)
+    ws.freeze_panes = "A9"
+    ws.auto_filter.ref = tabela_ref
+
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+    saida = BytesIO()
+    wb.save(saida)
+    return saida.getvalue()
 
 
 def opcoes_com_historico(df: pd.DataFrame, coluna: str, padroes: list[str]) -> list[str]:
@@ -1358,7 +1518,7 @@ def preparar_tabela_contas(df: pd.DataFrame) -> pd.DataFrame:
         "criado_em",
         "criado_por",
     ]
-    dados = df.sort_values(["vencimento_dt", "descricao"], na_position="last").copy()
+    dados = df.sort_values(["vencimento_dt", "descricao"], ascending=[False, True], na_position="last").copy()
     dados = dados[[coluna for coluna in colunas if coluna in dados.columns]]
     if "vencimento" in dados:
         dados["vencimento"] = dados["vencimento"].apply(formatar_data_br)
@@ -1416,31 +1576,29 @@ def selecionar_ordenacao_contas(campo: str) -> None:
     atual = st.session_state.get("contas_ordem_campo", "")
     crescente = st.session_state.get("contas_ordem_crescente", True)
     st.session_state.contas_ordem_campo = campo
-    st.session_state.contas_ordem_crescente = not crescente if atual == campo else True
+    if campo == "vencimento":
+        st.session_state.contas_ordem_crescente = False
+    else:
+        st.session_state.contas_ordem_crescente = not crescente if atual == campo else True
 
 
 def rotulo_ordenacao(campo: str) -> str:
     info = ORDENACOES_CONTAS[campo]
-    if st.session_state.get("contas_ordem_campo") != campo:
+    campo_atual = st.session_state.get("contas_ordem_campo", "vencimento")
+    crescente = False if campo == "vencimento" else bool(st.session_state.get("contas_ordem_crescente", False))
+    if campo_atual != campo:
         return f"{info['label']} ↕"
-    return f"{info['label']} {'↑' if st.session_state.get('contas_ordem_crescente', True) else '↓'}"
+    return f"{info['label']} {'↑' if crescente else '↓'}"
 
 
 def ordenar_contas_exibidas(contas: pd.DataFrame) -> pd.DataFrame:
-    campo = st.session_state.get("contas_ordem_campo", "")
+    campo = st.session_state.get("contas_ordem_campo", "vencimento")
     if campo not in ORDENACOES_CONTAS:
-        dados = contas.copy()
-        dados["_ordem_recente"] = pd.to_datetime(dados.get("criado_em", ""), errors="coerce")
-        dados["_ordem_documento"] = dados.get("documento", "").astype(str)
-        return dados.sort_values(
-            ["_ordem_recente", "_ordem_documento"],
-            ascending=[False, False],
-            na_position="last",
-        ).drop(columns=["_ordem_recente", "_ordem_documento"], errors="ignore")
+        campo = "vencimento"
 
     info = ORDENACOES_CONTAS[campo]
     coluna = str(info["coluna"])
-    crescente = bool(st.session_state.get("contas_ordem_crescente", True))
+    crescente = False if campo == "vencimento" else bool(st.session_state.get("contas_ordem_crescente", True))
     dados = contas.copy()
 
     if info["tipo"] == "data":
@@ -1671,6 +1829,7 @@ def editar_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str, dados_form
         dados_formulario["documento"],
     )
     atualizacoes = {
+        "tipo": "conta_a_pagar",
         "descricao": dados_formulario["descricao"],
         "fornecedor_cliente": dados_formulario["fornecedor"],
         "vencimento": dados_formulario["vencimento"].strftime("%Y-%m-%d"),
@@ -1683,6 +1842,9 @@ def editar_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str, dados_form
         "tipo_conta_nome": tipo_nome,
         "codigo_pagamento": dados_formulario["codigo_pagamento"],
         "criado_por": str(df_atualizado.iat[posicao, df_atualizado.columns.get_loc("criado_por")] or usuario),
+        "excluido_em": "",
+        "excluido_por": "",
+        "ativo": True,
     }
     if anexo_nome:
         atualizacoes["anexo_nome"] = anexo_nome
@@ -1741,7 +1903,13 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         c6, c7 = st.columns([1, 1])
         anexo = c6.file_uploader("Anexo", type=["pdf", "png", "jpg", "jpeg", "xml", "csv", "xlsx"])
         codigo_pagamento = c7.text_area("Codigo de barras ou chave Pix", height=88)
-        enviar = st.form_submit_button("Salvar conta a pagar", use_container_width=True)
+        acao_cancelar, acao_salvar = st.columns([1, 2])
+        cancelar = acao_cancelar.form_submit_button("Cancelar", use_container_width=True)
+        enviar = acao_salvar.form_submit_button("Salvar conta a pagar", use_container_width=True)
+
+    if cancelar:
+        st.session_state.manutencao_ativa = ""
+        st.rerun()
 
     if not enviar:
         return
@@ -2039,10 +2207,10 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
     st.markdown("### Contas para pagar")
     st.download_button(
-        "Baixar contas em CSV",
-        data=gerar_csv_download(contas),
-        file_name=f"contas_a_pagar_{empresa}.csv",
-        mime="text/csv",
+        "Baixar contas em Excel",
+        data=gerar_excel_contas_download(contas, empresa),
+        file_name=f"contas_a_pagar_{slug_empresa(empresa)}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
     )
 
