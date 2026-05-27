@@ -324,7 +324,7 @@ def imagem_base64(caminho: Path) -> str:
     return base64.b64encode(caminho.read_bytes()).decode("ascii")
 
 
-def mostrar_cabecalho(empresa: str, competencia: str, status_geral: str, status_tipo: str) -> None:
+def mostrar_cabecalho(empresa: str, status_geral: str, status_tipo: str) -> None:
     logo_b64 = imagem_base64(LOGO_FULL_PATH)
     logo_html = (
         f'<img class="portal-logo" src="data:image/png;base64,{logo_b64}" alt="MH LOG">'
@@ -351,7 +351,6 @@ def mostrar_cabecalho(empresa: str, competencia: str, status_geral: str, status_
             </div>
             <div class="portal-meta">
                 <div class="meta-pill"><span>Cliente</span>{escape(empresa)}</div>
-                <div class="meta-pill"><span>Competência</span>{escape(competencia)}</div>
                 <div class="meta-pill {status_classe}"><span>Status</span>{escape(status_geral)}</div>
             </div>
         </section>
@@ -367,8 +366,8 @@ def criar_config_demo() -> dict:
             {"usuario": "VICTOR", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
         ],
         "clientes": [
-            {"empresa": "MHLOG", "competencias": ["2026-01", "2026-02", "2026-03"]},
-            {"empresa": "MH BRASIL", "competencias": ["2026-01", "2026-02", "2026-03"]},
+            {"empresa": "MHLOG"},
+            {"empresa": "MH BRASIL"},
         ]
     }
     CONFIG_PATH.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -393,7 +392,6 @@ def normalizar_config(config: dict) -> dict:
 
     for cliente in clientes:
         cliente.pop("senha", None)
-        cliente.setdefault("competencias", ["2026-01", "2026-02", "2026-03"])
 
     return {"usuarios": usuarios, "clientes": clientes}
 
@@ -556,7 +554,6 @@ def inicializar_sessao() -> None:
     st.session_state.setdefault("autenticado", False)
     st.session_state.setdefault("usuario_logado", "")
     st.session_state.setdefault("empresa_logada", "")
-    st.session_state.setdefault("competencia_logada", "")
 
 
 def tela_login(config: dict) -> None:
@@ -611,33 +608,26 @@ def logout() -> None:
     st.rerun()
 
 
-def sidebar_filtros(config: dict) -> tuple[str, str]:
+def sidebar_filtros_antigo(config: dict) -> tuple[str, str]:
     if LOGO_FULL_PATH.exists():
         st.sidebar.image(str(LOGO_FULL_PATH), width=210)
     st.sidebar.title("🔐 Sessão do Cliente")
 
     empresa = st.session_state.get("empresa_logada", "")
-    cliente_atual = obter_cliente(config, empresa)
-    competencias = cliente_atual.get("competencias", [])
-    competencia_atual = st.session_state.get("competencia_logada", "")
-    competencia_idx = competencias.index(competencia_atual) if competencia_atual in competencias else 0
-
     st.sidebar.text_input("Usuário", value=empresa, disabled=True)
-    competencia = st.sidebar.selectbox("Competência", competencias, index=competencia_idx)
-    st.session_state.competencia_logada = competencia
     st.sidebar.divider()
     st.sidebar.success("Acesso liberado")
     st.sidebar.button("Sair", use_container_width=True, on_click=logout)
-    return empresa, competencia
+    return empresa, ""
 
 
-def filtrar_dados(df: pd.DataFrame, empresa: str, competencia: str) -> pd.DataFrame:
-    filtro = (df["empresa"] == empresa) & (df["competencia"] == competencia)
+def filtrar_dados(df: pd.DataFrame, empresa: str) -> pd.DataFrame:
+    filtro = df["empresa"] == empresa
     return df.loc[filtro].copy()
 
 
-def filtrar_contas_a_pagar_abertas(df: pd.DataFrame, empresa: str, competencia: str) -> pd.DataFrame:
-    dados = filtrar_dados(df, empresa, competencia)
+def filtrar_contas_a_pagar_abertas(df: pd.DataFrame, empresa: str) -> pd.DataFrame:
+    dados = filtrar_dados(df, empresa)
     status_abertos = dados["status"].astype(str).str.lower().isin(["aberto", "pendente", "vencido"])
     filtro = (dados["tipo"] == "conta_a_pagar") & status_abertos & dados["ativo"]
     return dados.loc[filtro].copy()
@@ -683,7 +673,6 @@ def tela_login(config: dict) -> None:
                     st.session_state.usuario_logado = usuario
                     st.session_state.usuario_login = usuario
                     st.session_state.empresa_logada = ""
-                    st.session_state.competencia_logada = ""
                     st.rerun()
                 else:
                     st.error("Usuario ou senha invalida.")
@@ -693,45 +682,34 @@ def logout() -> None:
     st.session_state.autenticado = False
     st.session_state.usuario_logado = ""
     st.session_state.empresa_logada = ""
-    st.session_state.competencia_logada = ""
     st.rerun()
 
 
 def voltar_dashboard_empresas() -> None:
     st.session_state.empresa_logada = ""
-    st.session_state.competencia_logada = ""
     st.rerun()
 
 
 def selecionar_empresa(empresa: str, config: dict) -> None:
-    cliente_atual = obter_cliente(config, empresa)
-    competencias = cliente_atual.get("competencias", [])
     st.session_state.empresa_logada = empresa
-    st.session_state.competencia_logada = competencias[0] if competencias else ""
     st.rerun()
 
 
-def sidebar_filtros(config: dict) -> tuple[str, str, str]:
+def sidebar_filtros(config: dict) -> tuple[str, str]:
     if LOGO_FULL_PATH.exists():
         st.sidebar.image(str(LOGO_FULL_PATH), width=210)
     st.sidebar.title("Sessao")
 
     usuario = st.session_state.get("usuario_logado", "")
     empresa = st.session_state.get("empresa_logada", "")
-    cliente_atual = obter_cliente(config, empresa)
-    competencias = cliente_atual.get("competencias", [])
-    competencia_atual = st.session_state.get("competencia_logada", "")
-    competencia_idx = competencias.index(competencia_atual) if competencia_atual in competencias else 0
 
     st.sidebar.text_input("Usuario", value=usuario, disabled=True)
     st.sidebar.text_input("Empresa", value=empresa, disabled=True)
-    competencia = st.sidebar.selectbox("Competencia", competencias, index=competencia_idx)
-    st.session_state.competencia_logada = competencia
     st.sidebar.divider()
     st.sidebar.success("Acesso liberado")
     st.sidebar.button("Trocar empresa", use_container_width=True, on_click=voltar_dashboard_empresas)
     st.sidebar.button("Sair", use_container_width=True, on_click=logout)
-    return empresa, competencia, usuario
+    return empresa, usuario
 
 
 def dashboard_empresas(config: dict, df: pd.DataFrame) -> None:
@@ -757,7 +735,6 @@ def dashboard_empresas(config: dict, df: pd.DataFrame) -> None:
         ]
         total = contas_empresa["valor"].sum()
         vencidas = int((contas_empresa["status"].astype(str).str.lower() == "vencido").sum())
-        competencias = sorted(contas_empresa["competencia"].dropna().astype(str).unique())
 
         with cols[indice % 2]:
             st.markdown(
@@ -767,7 +744,6 @@ def dashboard_empresas(config: dict, df: pd.DataFrame) -> None:
                     <p>Total em aberto: <strong>{escape(formatar_moeda_br(total))}</strong></p>
                     <p>Contas abertas: <strong>{len(contas_empresa)}</strong></p>
                     <p>Vencidas: <strong>{vencidas}</strong></p>
-                    <p>Competencias: <strong>{escape(", ".join(competencias) or "-")}</strong></p>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -875,7 +851,6 @@ def obter_tipo_conta(selecao: str) -> tuple[str, str]:
 def adicionar_conta_a_pagar(
     df: pd.DataFrame,
     empresa: str,
-    competencia: str,
     usuario: str,
     dados_formulario: dict,
 ) -> pd.DataFrame:
@@ -887,7 +862,7 @@ def adicionar_conta_a_pagar(
     tipo_codigo, tipo_nome = obter_tipo_conta(dados_formulario["tipo_conta"])
     nova_linha = {
         "empresa": empresa,
-        "competencia": competencia,
+        "competencia": "",
         "tipo": "conta_a_pagar",
         "descricao": dados_formulario["descricao"],
         "fornecedor_cliente": dados_formulario["fornecedor"],
@@ -919,7 +894,7 @@ def excluir_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str) -> pd.Dat
     return df_atualizado
 
 
-def formulario_inclusao(df: pd.DataFrame, empresa: str, competencia: str, usuario: str) -> None:
+def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### ➕ Incluir conta a pagar")
     st.caption("A inclusão fica registrada com data, hora e usuário logado.")
 
@@ -967,7 +942,7 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, competencia: str, usuari
         "observacao": observacao.strip(),
         "anexo": anexo,
     }
-    df_atualizado = adicionar_conta_a_pagar(df, empresa, competencia, usuario, dados_formulario)
+    df_atualizado = adicionar_conta_a_pagar(df, empresa, usuario, dados_formulario)
     salvar_dados_empresa(df_atualizado, empresa)
     st.success("Conta a pagar incluída com sucesso.")
     st.rerun()
@@ -1005,8 +980,8 @@ def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario:
         st.rerun()
 
 
-def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, competencia: str, usuario: str) -> None:
-    contas = filtrar_contas_a_pagar_abertas(df, empresa, competencia)
+def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
+    contas = filtrar_contas_a_pagar_abertas(df, empresa)
     total_aberto = contas["valor"].sum()
     vencidas = contas.loc[contas["status"].astype(str).str.lower() == "vencido"]
     proximos = contas.sort_values(["vencimento_dt", "descricao"], na_position="last").head(5)
@@ -1028,14 +1003,14 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, competencia: str, usua
         st.success("Nenhuma conta a pagar em aberto para esta competência.")
 
     with st.expander("➕ Incluir nova conta a pagar", expanded=False):
-        formulario_inclusao(df, empresa, competencia, usuario)
+        formulario_inclusao(df, empresa, usuario)
 
     st.divider()
     st.markdown("### 📋 Contas em aberto")
     st.download_button(
         "⬇️ Baixar contas filtradas em CSV",
         data=gerar_csv_download(contas),
-        file_name=f"contas_a_pagar_{empresa}_{competencia}.csv",
+        file_name=f"contas_a_pagar_{empresa}.csv",
         mime="text/csv",
         use_container_width=True,
     )
@@ -1063,13 +1038,13 @@ def main() -> None:
         dashboard_empresas(config, carregar_dados_empresas(config))
         st.stop()
 
-    empresa, competencia, usuario = sidebar_filtros(config)
+    empresa, usuario = sidebar_filtros(config)
     df = carregar_dados_empresa(empresa)
-    contas = filtrar_contas_a_pagar_abertas(df, empresa, competencia)
+    contas = filtrar_contas_a_pagar_abertas(df, empresa)
     status_geral, status_tipo = status_geral_contas(contas)
 
-    mostrar_cabecalho(empresa, competencia, status_geral, status_tipo)
-    pagina_contas_a_pagar(df, empresa, competencia, usuario)
+    mostrar_cabecalho(empresa, status_geral, status_tipo)
+    pagina_contas_a_pagar(df, empresa, usuario)
 
 
 if __name__ == "__main__":

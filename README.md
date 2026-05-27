@@ -5,7 +5,7 @@ Aplicativo web em Streamlit para um portal contábil simples, separado do sistem
 Nesta versão, a função principal é **Contas a Pagar**:
 
 - login por usuário e senha;
-- seleção de competência após o login;
+- dashboard por empresa apos o login;
 - lista de contas em aberto;
 - inclusão manual de contas a pagar;
 - upload de anexos, como boletos, notas fiscais e guias;

@@ -19,20 +19,10 @@
   ],
   "clientes": [
     {
-      "empresa": "MHLOG",
-      "competencias": [
-        "2026-01",
-        "2026-02",
-        "2026-03"
-      ]
+      "empresa": "MHLOG"
     },
     {
-      "empresa": "MH BRASIL",
-      "competencias": [
-        "2026-01",
-        "2026-02",
-        "2026-03"
-      ]
+      "empresa": "MH BRASIL"
     }
   ]
 }
