@@ -327,10 +327,20 @@ def configurar_pagina() -> None:
                 color: var(--mh-accent);
             }}
             .metric-grid {{
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+                display: flex;
+                flex-direction: column;
                 gap: 1rem;
                 margin: 1rem 0;
+            }}
+            .metric-row {{
+                display: grid;
+                gap: 1rem;
+            }}
+            .metric-row-top {{
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }}
+            .metric-row-bottom {{
+                grid-template-columns: repeat(3, minmax(0, 1fr));
             }}
             .metric-card {{
                 background: var(--mh-panel);
@@ -552,7 +562,12 @@ def configurar_pagina() -> None:
                     font-size: 1.15rem;
                 }}
                 .metric-grid {{
-                    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+                    gap: 0.75rem;
+                }}
+                .metric-row,
+                .metric-row-top,
+                .metric-row-bottom {{
+                    grid-template-columns: 1fr;
                     gap: 0.75rem;
                 }}
                 .metric-card {{
@@ -632,19 +647,25 @@ def mostrar_cabecalho(empresa: str, status_geral: str, status_tipo: str) -> None
 
 
 def renderizar_metricas(cards: list[dict[str, object]]) -> None:
-    itens = []
-    for card in cards:
-        delta = card.get("delta")
-        delta_html = f'<div class="metric-delta">↑ {escape(str(delta))}</div>' if delta is not None else ""
-        itens.append(
-            '<div class="metric-card">'
-            f'<div class="metric-label">{escape(str(card["label"]))}</div>'
-            f'<div class="metric-value">{escape(str(card["value"]))}</div>'
-            f"{delta_html}"
-            "</div>"
-        )
+    html_linhas = []
+    for indice_linha, cards_linha in enumerate([cards[:4], cards[4:]]):
+        if not cards_linha:
+            continue
+        itens = []
+        classe_linha = "metric-row-top" if indice_linha == 0 else "metric-row-bottom"
+        for card in cards_linha:
+            delta = card.get("delta")
+            delta_html = f'<div class="metric-delta">↑ {escape(str(delta))}</div>' if delta is not None else ""
+            itens.append(
+                '<div class="metric-card">'
+                f'<div class="metric-label">{escape(str(card["label"]))}</div>'
+                f'<div class="metric-value">{escape(str(card["value"]))}</div>'
+                f"{delta_html}"
+                "</div>"
+            )
+        html_linhas.append(f'<div class="metric-row {classe_linha}">{"".join(itens)}</div>')
 
-    st.markdown(f'<div class="metric-grid">{"".join(itens)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-grid">{"".join(html_linhas)}</div>', unsafe_allow_html=True)
 
 
 def criar_config_demo() -> dict:
