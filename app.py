@@ -634,9 +634,9 @@ def renderizar_metricas(cards: list[dict[str, object]]) -> None:
 def criar_config_demo() -> dict:
     config = {
         "usuarios": [
-            {"usuario": "DMLIMA", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "VICTOR", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "ALEX", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "DMLIMA", "senha": "123456", "perfil": "operador", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "VICTOR", "senha": "123456", "perfil": "operador", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "ALEX", "senha": "123456", "perfil": "consulta", "empresas": ["MHLOG", "MH BRASIL"]},
         ],
         "clientes": [
             {"empresa": "MHLOG"},
@@ -657,11 +657,15 @@ def normalizar_config(config: dict) -> dict:
             {
                 "usuario": item.get("empresa", ""),
                 "senha": item.get("senha", ""),
+                "perfil": "operador",
                 "empresas": empresas,
             }
             for item in clientes
             if item.get("senha")
         ]
+
+    for usuario in usuarios:
+        usuario["perfil"] = str(usuario.get("perfil", "operador") or "operador").strip().lower()
 
     for cliente in clientes:
         cliente.pop("senha", None)
@@ -1180,6 +1184,14 @@ def obter_senha_usuario(config: dict, usuario: str) -> str:
     return str(usuario_config.get("senha", ""))
 
 
+def perfil_do_usuario(config: dict, usuario: str) -> str:
+    return str(obter_usuario(config, usuario).get("perfil", "operador") or "operador").strip().lower()
+
+
+def usuario_pode_alterar(config: dict, usuario: str) -> bool:
+    return perfil_do_usuario(config, usuario) not in {"consulta", "consultor", "visualizacao", "visualização", "somente_consulta"}
+
+
 def empresas_do_usuario(config: dict, usuario: str) -> list[str]:
     usuario_config = obter_usuario(config, usuario)
     empresas_liberadas = usuario_config.get("empresas", [])
@@ -1373,6 +1385,7 @@ def sidebar_filtros(config: dict) -> tuple[str, str]:
     st.sidebar.title("Sessao")
     st.sidebar.text_input("Usuario", value=usuario, disabled=True)
     st.sidebar.text_input("Empresa", value=empresa, disabled=True)
+    st.sidebar.text_input("Perfil", value=perfil_do_usuario(config, usuario).title(), disabled=True)
     st.sidebar.divider()
     st.sidebar.success("Acesso liberado")
     st.sidebar.button("Trocar empresa", use_container_width=True, on_click=voltar_dashboard_empresas)
@@ -1616,13 +1629,21 @@ def ordenar_contas_exibidas(contas: pd.DataFrame) -> pd.DataFrame:
     return dados.sort_values("_ordem", ascending=crescente, na_position="last").drop(columns=["_ordem"], errors="ignore")
 
 
-def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame, empresa: str, usuario: str) -> None:
+def exibir_contas_com_acoes(
+    contas_exibidas: pd.DataFrame,
+    df_base: pd.DataFrame,
+    empresa: str,
+    usuario: str,
+    pode_alterar: bool,
+) -> None:
     if contas_exibidas.empty:
         st.info("Nenhum registro encontrado para este filtro.")
         return
 
     contas = ordenar_contas_exibidas(contas_exibidas)
-    larguras = [1.35, 2.4, 2.25, 1.25, 1, 1.35, 1.45]
+    larguras = [1.35, 2.4, 2.25, 1.25, 1, 1.35]
+    if pode_alterar:
+        larguras.append(1.45)
     cabecalho = st.columns(larguras)
     for col, campo in zip(cabecalho[:6], ORDENACOES_CONTAS.keys()):
         col.button(
@@ -1632,7 +1653,8 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
             args=(campo,),
             use_container_width=True,
         )
-    cabecalho[6].caption("Ações")
+    if pode_alterar:
+        cabecalho[6].caption("Ações")
 
     for indice, linha in contas.iterrows():
         nivel = nivel_prazo_conta(linha)
@@ -1644,6 +1666,8 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
         escrever_celula_conta(cols[3], formatar_moeda_br(float(linha.get("valor", 0) or 0)), nivel, nowrap=True)
         escrever_celula_conta(cols[4], "vencido" if nivel == "vencida" else str(linha.get("status", "")), nivel, nowrap=True, indicador=indicador)
         escrever_celula_conta(cols[5], str(linha.get("documento", "")), nivel)
+        if not pode_alterar:
+            continue
         acao_cols = cols[6].columns(3)
         if acao_cols[0].button("✏️", key=f"editar_{indice}", help="Editar conta"):
             selecionar_conta_para_edicao(indice)
@@ -2169,8 +2193,9 @@ def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario:
         st.rerun()
 
 
-def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
+def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str, config: dict) -> None:
     contas = filtrar_contas_a_pagar_abertas(df, empresa)
+    pode_alterar = usuario_pode_alterar(config, usuario)
     hoje = pd.Timestamp(datetime.now().date())
     total_aberto = contas["valor"].sum()
     vencidas = contas.loc[contas.apply(conta_vencida, axis=1)]
@@ -2217,11 +2242,17 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     if contas.empty:
         st.info("Nenhum registro encontrado para este filtro.")
     else:
-        exibir_contas_com_acoes(contas, df, empresa, usuario)
+        exibir_contas_com_acoes(contas, df, empresa, usuario, pode_alterar)
 
     indice_edicao = st.session_state.get("conta_edicao_indice")
-    if indice_edicao is not None:
+    if indice_edicao is not None and pode_alterar:
         janela_edicao_conta(df, indice_edicao, empresa, usuario)
+
+    if not pode_alterar:
+        st.info("Perfil de consulta: este usuario pode visualizar e baixar relatórios, mas nao pode incluir, editar, pagar, importar ou excluir contas.")
+        st.session_state.manutencao_ativa = ""
+        st.session_state.pop("conta_edicao_indice", None)
+        return
 
     st.divider()
     st.markdown("### Manutencao")
@@ -2262,7 +2293,7 @@ def main() -> None:
 
     mostrar_cabecalho(empresa, status_geral, status_tipo)
     if st.session_state.get("modulo_atual", "contas_a_pagar") == "contas_a_pagar":
-        pagina_contas_a_pagar(df, empresa, usuario)
+        pagina_contas_a_pagar(df, empresa, usuario, config)
     else:
         st.info("Este módulo ainda não está liberado.")
 

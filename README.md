@@ -49,6 +49,8 @@ ALEX / 123456
 
 Depois do login, o portal exibe o dashboard por empresa. `MHLOG` e `MH BRASIL` sao empresas/clientes, nao usuarios de acesso.
 
+`ALEX` usa perfil de consulta: pode visualizar e baixar relatorios, mas nao pode incluir, editar, pagar, importar ou excluir contas.
+
 ## Publicação No Streamlit Community Cloud
 
 1. Crie ou acesse o repositório no GitHub.
