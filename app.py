@@ -2034,13 +2034,7 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         ]
     )
 
-    if len(vencidas):
-        st.error("Existem contas vencidas nesta empresa. Revise os vencimentos antes do pagamento.")
-    elif len(vence_hoje):
-        st.warning("Existem contas com vencimento hoje.")
-    elif len(contas):
-        st.warning("Existem contas em aberto aguardando acompanhamento.")
-    else:
+    if not len(contas):
         st.success("Nenhuma conta a pagar em aberto para esta empresa.")
 
     st.markdown("### Contas para pagar")
