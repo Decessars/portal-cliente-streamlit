@@ -825,10 +825,20 @@ def resolver_opcao_digitavel(selecao: str, texto_novo: str) -> str:
 
 
 def opcoes_com_novo(opcoes: list[str]) -> list[str]:
-    limpas = [opcao for opcao in opcoes if str(opcao or "").strip() != OPCAO_NOVO]
-    if limpas and str(limpas[0] or "").strip() == "":
-        return [limpas[0], OPCAO_NOVO, *limpas[1:]]
-    return [OPCAO_NOVO, *limpas]
+    limpas = [
+        str(opcao or "").strip()
+        for opcao in opcoes
+        if str(opcao or "").strip() and str(opcao or "").strip() != OPCAO_NOVO
+    ]
+    ordenadas = sorted(
+        limpas,
+        key=lambda texto: unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii").casefold(),
+    )
+    return [OPCAO_NOVO, *ordenadas]
+
+
+def rotulo_opcao_nova(opcao: str) -> str:
+    return f"🔴 {OPCAO_NOVO}" if opcao == OPCAO_NOVO else opcao
 
 
 def indice_padrao_sem_novo(opcoes: list[str]) -> int:
@@ -847,7 +857,13 @@ def campo_opcao_nova(
     index: int | None = None,
 ) -> tuple[str, str]:
     indice = indice_padrao_sem_novo(opcoes) if index is None else index
-    selecao = container.selectbox(label, opcoes, index=indice, key=f"{key_prefix}_selecao")
+    selecao = container.selectbox(
+        label,
+        opcoes,
+        index=indice,
+        key=f"{key_prefix}_selecao",
+        format_func=rotulo_opcao_nova,
+    )
     texto_novo = ""
     if selecao == OPCAO_NOVO:
         texto_novo = container.text_input(label_novo, key=f"{key_prefix}_novo")
@@ -1603,7 +1619,6 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         opcoes_descricao,
         "Digite a nova descricao",
         "inclusao_descricao",
-        index=0,
     )
     fornecedor_sel, fornecedor_novo = campo_opcao_nova(
         c2,
@@ -1611,7 +1626,6 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         opcoes_fornecedor,
         "Digite o novo fornecedor",
         "inclusao_fornecedor",
-        index=0,
     )
     tipo_conta_sel, tipo_conta_novo = campo_opcao_nova(
         st,
