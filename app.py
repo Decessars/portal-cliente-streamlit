@@ -1955,13 +1955,10 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### Manutencao")
 
     st.session_state.setdefault("manutencao_ativa", "")
-    a1, a2, a3 = st.columns([1, 1, 1], gap="small")
-    a1.button("➕", help="Incluir nova conta a pagar", key="btn_manutencao_incluir", on_click=selecionar_manutencao, args=("incluir",))
-    a1.caption("Incluir")
-    a2.button("📥", help="Importar contas em massa por CSV", key="btn_manutencao_importar", on_click=selecionar_manutencao, args=("importar",))
-    a2.caption("Importar")
-    a3.button("🗑️", help="Excluir conta a pagar", key="btn_manutencao_excluir", on_click=selecionar_manutencao, args=("excluir",))
-    a3.caption("Excluir")
+    a1, a2, a3, espaco = st.columns([1.2, 1.2, 1.2, 5.4], gap="small")
+    a1.button("➕ Incluir", help="Incluir nova conta a pagar", key="btn_manutencao_incluir", on_click=selecionar_manutencao, args=("incluir",), use_container_width=True)
+    a2.button("📥 Importar", help="Importar contas em massa por CSV", key="btn_manutencao_importar", on_click=selecionar_manutencao, args=("importar",), use_container_width=True)
+    a3.button("🗑️ Excluir", help="Excluir conta a pagar", key="btn_manutencao_excluir", on_click=selecionar_manutencao, args=("excluir",), use_container_width=True)
 
     if st.session_state.manutencao_ativa == "incluir":
         st.markdown("#### ➕ Incluir nova conta a pagar")
