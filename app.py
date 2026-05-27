@@ -1120,7 +1120,7 @@ def dashboard_empresas(config: dict, df: pd.DataFrame) -> None:
             & df["ativo"]
         ]
         total = contas_empresa["valor"].sum()
-        vencidas = int((contas_empresa["status"].astype(str).str.lower() == "vencido").sum())
+        vencidas = int(contas_empresa.apply(conta_vencida, axis=1).sum())
 
         with cols[indice % 2]:
             st.markdown(
@@ -1147,10 +1147,36 @@ def status_geral_contas(df: pd.DataFrame) -> tuple[str, str]:
     if df.empty:
         return "Sem contas em aberto", "ok"
 
-    vencidos = int((df["status"].astype(str).str.lower() == "vencido").sum())
+    vencidos = int(df.apply(conta_vencida, axis=1).sum())
     if vencidos:
         return f"{vencidos} conta(s) vencida(s)", "alerta"
     return f"{len(df)} conta(s) em aberto", "pendente"
+
+
+def conta_vencida(linha: pd.Series) -> bool:
+    status = str(linha.get("status", linha.get("Status", ""))).strip().lower()
+    if status == "vencido":
+        return True
+    if status not in {"aberto", "pendente"}:
+        return False
+
+    vencimento_valor = linha.get("vencimento", linha.get("Vencimento", ""))
+    vencimento_texto = str(vencimento_valor)
+    vencimento = pd.to_datetime(vencimento_valor, errors="coerce", dayfirst="/" in vencimento_texto)
+    if pd.isna(vencimento):
+        return False
+    return vencimento.date() < datetime.now().date()
+
+
+def escrever_celula_conta(coluna: object, texto: str, vencida: bool) -> None:
+    if not vencida:
+        coluna.write(texto)
+        return
+
+    coluna.markdown(
+        f'<span style="color:#b91c1c;font-weight:700;">{escape(texto)}</span>',
+        unsafe_allow_html=True,
+    )
 
 
 def preparar_tabela_contas(df: pd.DataFrame) -> pd.DataFrame:
@@ -1194,7 +1220,7 @@ def preparar_tabela_contas(df: pd.DataFrame) -> pd.DataFrame:
 
 def estilo_status_linha(linha: pd.Series) -> list[str]:
     status = str(linha.get("Status", "")).strip().lower()
-    if status == "vencido":
+    if conta_vencida(linha):
         estilo = "background-color: rgba(220, 38, 38, 0.10); color: #7f1d1d;"
     elif status in {"aberto", "pendente"}:
         estilo = "background-color: rgba(183, 121, 31, 0.08); color: #713f12;"
@@ -1223,13 +1249,14 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
         col.caption(label)
 
     for indice, linha in contas.iterrows():
+        vencida = conta_vencida(linha)
         cols = st.columns([1, 2.2, 2.2, 1.1, 1, 1.2, 1.5])
-        cols[0].write(formatar_data_br(linha.get("vencimento")))
-        cols[1].write(str(linha.get("descricao", "")))
-        cols[2].write(str(linha.get("fornecedor_cliente", "")))
-        cols[3].write(formatar_moeda_br(float(linha.get("valor", 0) or 0)))
-        cols[4].write(str(linha.get("status", "")))
-        cols[5].write(str(linha.get("documento", "")))
+        escrever_celula_conta(cols[0], formatar_data_br(linha.get("vencimento")), vencida)
+        escrever_celula_conta(cols[1], str(linha.get("descricao", "")), vencida)
+        escrever_celula_conta(cols[2], str(linha.get("fornecedor_cliente", "")), vencida)
+        escrever_celula_conta(cols[3], formatar_moeda_br(float(linha.get("valor", 0) or 0)), vencida)
+        escrever_celula_conta(cols[4], "vencido" if vencida else str(linha.get("status", "")), vencida)
+        escrever_celula_conta(cols[5], str(linha.get("documento", "")), vencida)
         acao_cols = cols[6].columns(3)
         if acao_cols[0].button("✏️", key=f"editar_{indice}", help="Editar conta"):
             selecionar_conta_para_edicao(indice)
@@ -1716,7 +1743,7 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     contas = filtrar_contas_a_pagar_abertas(df, empresa)
     hoje = pd.Timestamp(datetime.now().date())
     total_aberto = contas["valor"].sum()
-    vencidas = contas.loc[contas["status"].astype(str).str.lower() == "vencido"]
+    vencidas = contas.loc[contas.apply(conta_vencida, axis=1)]
     vence_hoje = contas.loc[contas["vencimento_dt"].dt.date == hoje.date()]
     proximos_7 = contas.loc[
         (contas["vencimento_dt"] > hoje)
