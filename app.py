@@ -234,7 +234,25 @@ def configurar_pagina() -> None:
             [data-testid="stSidebar"] img {{
                 max-width: 132px;
                 display: block;
-                margin: 0 auto 0.75rem;
+                margin: 0 auto 0.45rem;
+            }}
+            [data-testid="stSidebar"] h1,
+            [data-testid="stSidebar"] h2,
+            [data-testid="stSidebar"] h3 {{
+                margin-bottom: 0.35rem;
+            }}
+            [data-testid="stSidebar"] [data-testid="stTextInput"] {{
+                margin-bottom: 0.2rem;
+            }}
+            [data-testid="stSidebar"] [data-testid="stTextInput"] label {{
+                padding-bottom: 0.15rem;
+            }}
+            [data-testid="stSidebar"] [data-testid="stAlert"] {{
+                padding: 0.65rem 0.75rem;
+                margin: 0.35rem 0;
+            }}
+            [data-testid="stSidebar"] div.stButton > button {{
+                min-height: 2.35rem;
             }}
             .main .block-container {{
                 padding-top: 1.25rem;
@@ -785,8 +803,9 @@ def criar_config_demo() -> dict:
             {"usuario": "DMLIMA", "senha": "123456", "perfil": "administrador", "empresas": ["MHLOG", "MH BRASIL"]},
             {"usuario": "VITOR", "senha": "123456", "perfil": "estagiario", "empresas": ["MHLOG", "MH BRASIL"]},
             {"usuario": "ALEX", "senha": "123456", "perfil": "dono", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "RAFAEL", "senha": "123456", "perfil": "socio", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "JESSICA", "senha": "123456", "perfil": "socio", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "RAFAEL", "senha": "123456", "perfil": "socio_operador", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "JESSICA", "senha": "123456", "perfil": "socio_operador", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "MH_FINANCEIRO", "senha": "123456", "perfil": "financeiro", "empresas": ["MHLOG", "MH BRASIL"]},
         ],
         "clientes": [
             {"empresa": "MHLOG"},
@@ -1401,6 +1420,19 @@ def perfil_do_usuario(config: dict, usuario: str) -> str:
     return str(obter_usuario(config, usuario).get("perfil", "operador") or "operador").strip().lower()
 
 
+def rotulo_perfil(perfil: str) -> str:
+    return {
+        "administrador": "Administrador",
+        "estagiario": "Estagiario",
+        "dono": "Dono",
+        "socio": "Socio",
+        "sócio": "Socio",
+        "socio_operador": "Socio operador",
+        "financeiro": "Financeiro",
+        "consulta": "Consulta",
+    }.get(str(perfil or "").strip().lower(), str(perfil or "Operador").replace("_", " ").title())
+
+
 def usuario_pode_alterar(config: dict, usuario: str) -> bool:
     return perfil_do_usuario(config, usuario) not in {
         "consulta",
@@ -1409,8 +1441,20 @@ def usuario_pode_alterar(config: dict, usuario: str) -> bool:
         "visualização",
         "somente_consulta",
         "dono",
-        "socio",
-        "sócio",
+        "financeiro",
+    }
+
+
+def permissoes_do_usuario(config: dict, usuario: str) -> dict[str, bool]:
+    perfil = perfil_do_usuario(config, usuario)
+    pode_operar = usuario_pode_alterar(config, usuario)
+    pode_pagar = pode_operar or perfil == "financeiro"
+    return {
+        "editar": pode_operar,
+        "duplicar": pode_operar,
+        "pagar": pode_pagar,
+        "excluir": pode_operar,
+        "manutencao": pode_operar,
     }
 
 
@@ -1744,12 +1788,12 @@ def sidebar_filtros(config: dict) -> tuple[str, str]:
     st.sidebar.title("Sessao")
     st.sidebar.text_input("Usuario", value=usuario, disabled=True)
     st.sidebar.text_input("Empresa", value=empresa, disabled=True)
-    st.sidebar.text_input("Perfil", value=perfil_do_usuario(config, usuario).title(), disabled=True)
+    st.sidebar.text_input("Perfil", value=rotulo_perfil(perfil_do_usuario(config, usuario)), disabled=True)
     st.sidebar.divider()
     st.sidebar.success("Acesso liberado")
     st.sidebar.button("Trocar senha", use_container_width=True, on_click=abrir_troca_senha)
     st.sidebar.button("Trocar empresa", use_container_width=True, on_click=voltar_dashboard_empresas)
-    st.sidebar.button("Sair", use_container_width=True, on_click=logout)
+    st.sidebar.button("Trocar usuário", use_container_width=True, on_click=logout)
     return empresa, usuario
 
 
@@ -1773,7 +1817,7 @@ def dashboard_empresas(config: dict, df: pd.DataFrame) -> None:
     st.sidebar.title("Sessao")
     st.sidebar.text_input("Usuario", value=usuario, disabled=True)
     st.sidebar.button("Trocar senha", use_container_width=True, on_click=abrir_troca_senha)
-    st.sidebar.button("Sair", use_container_width=True, on_click=logout)
+    st.sidebar.button("Trocar usuário", use_container_width=True, on_click=logout)
 
     st.title("Dashboard por empresa")
     st.caption("Escolha uma empresa para abrir as contas a pagar e os indicadores dela.")
@@ -1995,7 +2039,7 @@ def exibir_contas_com_acoes(
     df_base: pd.DataFrame,
     empresa: str,
     usuario: str,
-    pode_alterar: bool,
+    permissoes: dict[str, bool],
 ) -> None:
     if contas_exibidas.empty:
         st.info("Nenhum registro encontrado para este filtro.")
@@ -2003,7 +2047,8 @@ def exibir_contas_com_acoes(
 
     contas = ordenar_contas_exibidas(contas_exibidas)
     larguras = [1.35, 2.4, 2.25, 1.25, 1, 1.35]
-    if pode_alterar:
+    acoes = [acao for acao in ["editar", "duplicar", "pagar", "excluir"] if permissoes.get(acao)]
+    if acoes:
         larguras.append(1.9)
     cabecalho = st.columns(larguras)
     for col, campo in zip(cabecalho[:6], ORDENACOES_CONTAS.keys()):
@@ -2014,7 +2059,7 @@ def exibir_contas_com_acoes(
             args=(campo,),
             use_container_width=True,
         )
-    if pode_alterar:
+    if acoes:
         cabecalho[6].caption("Ações")
 
     for indice, linha in contas.iterrows():
@@ -2027,23 +2072,27 @@ def exibir_contas_com_acoes(
         escrever_celula_conta(cols[3], formatar_moeda_br(float(linha.get("valor", 0) or 0)), nivel, nowrap=True)
         escrever_celula_conta(cols[4], "vencido" if nivel == "vencida" else str(linha.get("status", "")), nivel, nowrap=True, indicador=indicador)
         escrever_celula_conta(cols[5], str(linha.get("documento", "")), nivel)
-        if not pode_alterar:
+        if not acoes:
             continue
-        acao_cols = cols[6].columns(4)
-        if acao_cols[0].button("✏️", key=f"editar_{indice}", help="Editar conta"):
+        acao_cols = cols[6].columns(len(acoes))
+        posicao_acao = 0
+        if permissoes.get("editar") and acao_cols[posicao_acao].button("✏️", key=f"editar_{indice}", help="Editar conta"):
             selecionar_conta_para_edicao(indice)
             st.rerun()
-        if acao_cols[1].button("📄", key=f"duplicar_{indice}", help="Duplicar conta"):
+        posicao_acao += 1 if permissoes.get("editar") else 0
+        if permissoes.get("duplicar") and acao_cols[posicao_acao].button("📄", key=f"duplicar_{indice}", help="Duplicar conta"):
             selecionar_conta_para_duplicacao(indice)
             st.rerun()
-        if acao_cols[2].button("✅", key=f"pagar_{indice}", help="Marcar como pago"):
+        posicao_acao += 1 if permissoes.get("duplicar") else 0
+        if permissoes.get("pagar") and acao_cols[posicao_acao].button("✅", key=f"pagar_{indice}", help="Marcar como pago"):
             try:
                 df_atualizado = marcar_conta_como_paga(df_base, indice, usuario)
                 salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
                 sucesso_temporario("Salvo com sucesso.")
             except ValueError as erro:
                 st.error(str(erro))
-        if acao_cols[3].button("🗑️", key=f"excluir_{indice}", help="Excluir conta"):
+        posicao_acao += 1 if permissoes.get("pagar") else 0
+        if permissoes.get("excluir") and acao_cols[posicao_acao].button("🗑️", key=f"excluir_{indice}", help="Excluir conta"):
             try:
                 df_atualizado = excluir_conta_a_pagar(df_base, indice, usuario)
                 salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
@@ -2656,7 +2705,7 @@ def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario:
 
 def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str, config: dict) -> None:
     contas = filtrar_contas_a_pagar_abertas(df, empresa)
-    pode_alterar = usuario_pode_alterar(config, usuario)
+    permissoes = permissoes_do_usuario(config, usuario)
     hoje = pd.Timestamp(datetime.now().date())
     total_aberto = contas["valor"].sum()
     vencidas = contas.loc[contas.apply(conta_vencida, axis=1)]
@@ -2718,18 +2767,21 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str, config: 
     if contas.empty:
         st.info("Nenhum registro encontrado para este filtro.")
     else:
-        exibir_contas_com_acoes(contas, df, empresa, usuario, pode_alterar)
+        exibir_contas_com_acoes(contas, df, empresa, usuario, permissoes)
 
     indice_edicao = st.session_state.get("conta_edicao_indice")
-    if indice_edicao is not None and pode_alterar:
+    if indice_edicao is not None and permissoes["editar"]:
         janela_edicao_conta(df, indice_edicao, empresa, usuario)
 
     indice_duplicacao = st.session_state.get("conta_duplicacao_indice")
-    if indice_duplicacao is not None and pode_alterar:
+    if indice_duplicacao is not None and permissoes["duplicar"]:
         janela_duplicacao_conta(df, indice_duplicacao, empresa, usuario)
 
-    if not pode_alterar:
-        st.info("Perfil de consulta: este usuario pode visualizar e baixar relatórios, mas nao pode incluir, duplicar, editar, pagar, importar ou excluir contas.")
+    if not permissoes["manutencao"]:
+        if permissoes["pagar"]:
+            st.info("Perfil financeiro: este usuario pode visualizar, baixar relatorios e marcar contas como pagas.")
+        else:
+            st.info("Perfil de consulta: este usuario pode visualizar e baixar relatorios, mas nao pode incluir, duplicar, editar, pagar, importar ou excluir contas.")
         st.session_state.manutencao_ativa = ""
         st.session_state.pop("conta_edicao_indice", None)
         st.session_state.pop("conta_duplicacao_indice", None)

@@ -30,7 +30,7 @@
     {
       "usuario": "RAFAEL",
       "senha": "123456",
-      "perfil": "socio",
+      "perfil": "socio_operador",
       "empresas": [
         "MHLOG",
         "MH BRASIL"
@@ -39,7 +39,16 @@
     {
       "usuario": "JESSICA",
       "senha": "123456",
-      "perfil": "socio",
+      "perfil": "socio_operador",
+      "empresas": [
+        "MHLOG",
+        "MH BRASIL"
+      ]
+    },
+    {
+      "usuario": "MH_FINANCEIRO",
+      "senha": "123456",
+      "perfil": "financeiro",
       "empresas": [
         "MHLOG",
         "MH BRASIL"
