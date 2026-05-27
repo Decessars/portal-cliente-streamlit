@@ -97,6 +97,38 @@ DOCUMENTOS_DEMO_LEGADOS = {
     "AP-MHB-002",
 }
 
+SUGESTOES_DESCRICAO = [
+    "Honorários contábeis",
+    "DAS Simples Nacional",
+    "INSS a recolher",
+    "FGTS a recolher",
+    "ISS a recolher",
+    "Aluguel",
+    "Energia elétrica",
+    "Internet",
+    "Manutenção de frota",
+    "Serviços administrativos",
+]
+
+SUGESTOES_FORNECEDOR = [
+    "Escritório Contábil",
+    "Receita Federal",
+    "Prefeitura",
+    "Caixa Econômica Federal",
+    "Companhia de Energia",
+    "Fornecedor Brasil",
+]
+
+SUGESTOES_CATEGORIA = [
+    "Contabilidade",
+    "Tributos",
+    "Folha",
+    "Administrativo",
+    "Operacional",
+    "Despesas fixas",
+    "Tecnologia",
+]
+
 MODULOS_CONTABEIS = [
     {"id": "contas_a_pagar", "titulo": "Contas a Pagar", "ativo": True},
     {"id": "contas_a_receber", "titulo": "Contas a Receber", "ativo": False},
@@ -654,6 +686,29 @@ def agora_br() -> str:
 def gerar_csv_download(df: pd.DataFrame) -> bytes:
     colunas = [coluna for coluna in COLUNAS_DADOS if coluna in df.columns]
     return df[colunas].to_csv(index=False).encode("utf-8-sig")
+
+
+def opcoes_com_historico(df: pd.DataFrame, coluna: str, padroes: list[str]) -> list[str]:
+    opcoes = [""]
+    if coluna in df.columns:
+        historico = (
+            df[coluna]
+            .dropna()
+            .astype(str)
+            .map(str.strip)
+            .loc[lambda serie: serie.ne("")]
+            .drop_duplicates()
+            .tolist()
+        )
+        opcoes.extend(historico)
+    opcoes.extend(padroes)
+    return list(dict.fromkeys(opcoes))
+
+
+def resolver_opcao_digitavel(selecao: str, texto_outro: str) -> str:
+    if selecao == "Outro":
+        return texto_outro.strip()
+    return str(selecao or "").strip()
 
 
 def gerar_modelo_importacao_csv() -> bytes:
@@ -1231,10 +1286,15 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.caption("A inclusão fica registrada com data, hora e usuário logado.")
 
     opcoes_tipo = [f"{codigo} - {nome}" for codigo, nome in TIPOS_CONTA_PAGAR.items()]
+    opcoes_descricao = opcoes_com_historico(df, "descricao", SUGESTOES_DESCRICAO) + ["Outro"]
+    opcoes_fornecedor = opcoes_com_historico(df, "fornecedor_cliente", SUGESTOES_FORNECEDOR) + ["Outro"]
+    opcoes_categoria = opcoes_com_historico(df, "categoria", SUGESTOES_CATEGORIA) + ["Outro"]
     with st.form("form_conta_a_pagar", clear_on_submit=True):
         c1, c2 = st.columns(2)
-        descricao = c1.text_input("Descrição", placeholder="Ex.: Honorários contábeis")
-        fornecedor = c2.text_input("Fornecedor", placeholder="Ex.: Escritório Contábil")
+        descricao_sel = c1.selectbox("Descrição", opcoes_descricao, index=0)
+        fornecedor_sel = c2.selectbox("Fornecedor", opcoes_fornecedor, index=0)
+        descricao_outro = c1.text_input("Descrição nova", disabled=descricao_sel != "Outro")
+        fornecedor_outro = c2.text_input("Fornecedor novo", disabled=fornecedor_sel != "Outro")
 
         c3, c4, c5 = st.columns([1, 1, 1])
         vencimento = c3.date_input("Vencimento")
@@ -1243,7 +1303,8 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
         tipo_conta = st.selectbox("Tipo de conta", opcoes_tipo)
         c6, c7 = st.columns(2)
-        categoria = c6.text_input("Categoria", placeholder="Ex.: Tributos, Folha, Contabilidade")
+        categoria_sel = c6.selectbox("Categoria", opcoes_categoria, index=0)
+        categoria_outro = c6.text_input("Categoria nova", disabled=categoria_sel != "Outro")
         documento = c7.text_input("Documento / referência", placeholder="Ex.: NF-123, BOLETO-001")
 
         observacao = st.text_area("Observação", height=80)
@@ -1256,6 +1317,10 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
     if not enviar:
         return
+
+    descricao = resolver_opcao_digitavel(descricao_sel, descricao_outro)
+    fornecedor = resolver_opcao_digitavel(fornecedor_sel, fornecedor_outro)
+    categoria = resolver_opcao_digitavel(categoria_sel, categoria_outro)
 
     if not descricao.strip() or not fornecedor.strip() or valor <= 0:
         st.error("Preencha descrição, fornecedor e valor maior que zero.")
@@ -1350,6 +1415,9 @@ def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: s
         vencimento_atual = pd.Timestamp(datetime.now().date())
 
     opcoes_tipo = [f"{codigo} - {nome}" for codigo, nome in TIPOS_CONTA_PAGAR.items()]
+    opcoes_descricao = opcoes_com_historico(df, "descricao", SUGESTOES_DESCRICAO)
+    opcoes_fornecedor = opcoes_com_historico(df, "fornecedor_cliente", SUGESTOES_FORNECEDOR)
+    opcoes_categoria = opcoes_com_historico(df, "categoria", SUGESTOES_CATEGORIA)
     tipo_atual = str(linha.get("tipo_conta_codigo", "")).strip()
     tipo_rotulo = next((opcao for opcao in opcoes_tipo if opcao.startswith(f"{tipo_atual} - ")), opcoes_tipo[0])
     tipo_idx = opcoes_tipo.index(tipo_rotulo)
