@@ -1301,12 +1301,44 @@ def conta_vencida(linha: pd.Series) -> bool:
     return vencimento.date() < datetime.now().date()
 
 
-def escrever_celula_conta(coluna: object, texto: str, vencida: bool, nowrap: bool = False) -> None:
-    cor = "#b91c1c" if vencida else "inherit"
-    peso = "700" if vencida else "400"
+def nivel_prazo_conta(linha: pd.Series) -> str:
+    if conta_vencida(linha):
+        return "vencida"
+
+    status = str(linha.get("status", linha.get("Status", ""))).strip().lower()
+    if status not in {"aberto", "pendente"}:
+        return "neutra"
+
+    vencimento_valor = linha.get("vencimento", linha.get("Vencimento", ""))
+    vencimento_texto = str(vencimento_valor)
+    vencimento = pd.to_datetime(vencimento_valor, errors="coerce", dayfirst="/" in vencimento_texto)
+    if pd.isna(vencimento):
+        return "neutra"
+
+    dias = (vencimento.date() - datetime.now().date()).days
+    if dias <= 7:
+        return "atencao"
+    return "ok"
+
+
+def indicador_prazo_conta(linha: pd.Series) -> str:
+    nivel = nivel_prazo_conta(linha)
+    if nivel == "vencida":
+        return "🔴"
+    if nivel == "atencao":
+        return "🟡"
+    if nivel == "ok":
+        return "🟢"
+    return "⚪"
+
+
+def escrever_celula_conta(coluna: object, texto: str, nivel: str, nowrap: bool = False, indicador: str = "") -> None:
+    cor = {"vencida": "#b91c1c", "atencao": "#b7791f", "ok": "inherit"}.get(nivel, "inherit")
+    peso = "700" if nivel == "vencida" else "400"
     quebra = "white-space:nowrap;" if nowrap else "overflow-wrap:anywhere;"
+    conteudo = f"{indicador} {texto}".strip()
     coluna.markdown(
-        f'<span style="color:{cor};font-weight:{peso};{quebra}">{escape(texto)}</span>',
+        f'<span style="color:{cor};font-weight:{peso};{quebra}">{escape(conteudo)}</span>',
         unsafe_allow_html=True,
     )
 
@@ -1445,14 +1477,15 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
     cabecalho[6].caption("Ações")
 
     for indice, linha in contas.iterrows():
-        vencida = conta_vencida(linha)
+        nivel = nivel_prazo_conta(linha)
+        indicador = indicador_prazo_conta(linha)
         cols = st.columns(larguras)
-        escrever_celula_conta(cols[0], formatar_data_br(linha.get("vencimento")), vencida, nowrap=True)
-        escrever_celula_conta(cols[1], str(linha.get("descricao", "")), vencida)
-        escrever_celula_conta(cols[2], str(linha.get("fornecedor_cliente", "")), vencida)
-        escrever_celula_conta(cols[3], formatar_moeda_br(float(linha.get("valor", 0) or 0)), vencida, nowrap=True)
-        escrever_celula_conta(cols[4], "vencido" if vencida else str(linha.get("status", "")), vencida, nowrap=True)
-        escrever_celula_conta(cols[5], str(linha.get("documento", "")), vencida)
+        escrever_celula_conta(cols[0], formatar_data_br(linha.get("vencimento")), nivel, nowrap=True, indicador=indicador)
+        escrever_celula_conta(cols[1], str(linha.get("descricao", "")), nivel)
+        escrever_celula_conta(cols[2], str(linha.get("fornecedor_cliente", "")), nivel)
+        escrever_celula_conta(cols[3], formatar_moeda_br(float(linha.get("valor", 0) or 0)), nivel, nowrap=True)
+        escrever_celula_conta(cols[4], "vencido" if nivel == "vencida" else str(linha.get("status", "")), nivel, nowrap=True, indicador=indicador)
+        escrever_celula_conta(cols[5], str(linha.get("documento", "")), nivel)
         acao_cols = cols[6].columns(3)
         if acao_cols[0].button("✏️", key=f"editar_{indice}", help="Editar conta"):
             selecionar_conta_para_edicao(indice)
