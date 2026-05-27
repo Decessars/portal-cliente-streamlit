@@ -1017,23 +1017,19 @@ def logout() -> None:
     st.session_state.autenticado = False
     st.session_state.usuario_logado = ""
     st.session_state.empresa_logada = ""
-    st.rerun()
 
 
 def voltar_dashboard_empresas() -> None:
     st.session_state.empresa_logada = ""
-    st.rerun()
 
 
 def selecionar_empresa(empresa: str, config: dict) -> None:
     st.session_state.empresa_logada = empresa
     st.session_state.modulo_atual = "contas_a_pagar"
-    st.rerun()
 
 
 def selecionar_modulo(modulo_id: str) -> None:
     st.session_state.modulo_atual = modulo_id
-    st.rerun()
 
 
 def exibir_menu_contabil() -> None:
@@ -1637,39 +1633,45 @@ def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario:
 
 def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     contas = filtrar_contas_a_pagar_abertas(df, empresa)
+    hoje = pd.Timestamp(datetime.now().date())
     total_aberto = contas["valor"].sum()
     vencidas = contas.loc[contas["status"].astype(str).str.lower() == "vencido"]
-    proximos = contas.sort_values(["vencimento_dt", "descricao"], na_position="last").head(5)
+    vence_hoje = contas.loc[contas["vencimento_dt"].dt.date == hoje.date()]
+    proximos_7 = contas.loc[
+        (contas["vencimento_dt"] > hoje)
+        & (contas["vencimento_dt"] <= hoje + pd.Timedelta(days=7))
+    ]
+    abertas_no_prazo = contas.loc[
+        (contas["status"].astype(str).str.lower().isin(["aberto", "pendente"]))
+        & (contas["vencimento_dt"] > hoje + pd.Timedelta(days=7))
+    ]
 
-    st.subheader("💸 Contas a Pagar")
-    st.caption("Lista operacional de obrigações em aberto, com inclusão manual e anexos.")
+    st.subheader("Painel de pagamentos")
+    st.caption("Visao para acompanhar o que precisa ser pago por vencimento.")
 
     c1, c2, c3, c4 = st.columns(4, gap="small")
-    c1.metric("Total em aberto", formatar_moeda_br(total_aberto))
-    c2.metric("Quantidade", int(len(contas)))
-    c3.metric("Vencidas", int(len(vencidas)))
-    c4.metric("Próximos vencimentos", int(len(proximos)))
+    c1.metric("Total a pagar", formatar_moeda_br(total_aberto))
+    c2.metric("Vencidas", formatar_moeda_br(vencidas["valor"].sum()), int(len(vencidas)))
+    c3.metric("Vence hoje", formatar_moeda_br(vence_hoje["valor"].sum()), int(len(vence_hoje)))
+    c4.metric("Proximos 7 dias", formatar_moeda_br(proximos_7["valor"].sum()), int(len(proximos_7)))
+
+    c5, c6, c7 = st.columns(3, gap="small")
+    c5.metric("Contas em aberto", int(len(contas)))
+    c6.metric("No prazo", int(len(abertas_no_prazo)))
+    c7.metric("Ticket medio", formatar_moeda_br(total_aberto / len(contas)) if len(contas) else formatar_moeda_br(0))
 
     if len(vencidas):
         st.error("Existem contas vencidas nesta empresa. Revise os vencimentos antes do pagamento.")
+    elif len(vence_hoje):
+        st.warning("Existem contas com vencimento hoje.")
     elif len(contas):
         st.warning("Existem contas em aberto aguardando acompanhamento.")
     else:
         st.success("Nenhuma conta a pagar em aberto para esta empresa.")
 
-    with st.expander("➕ Incluir nova conta a pagar", expanded=False):
-        formulario_inclusao(df, empresa, usuario)
-
-    with st.expander("Importar contas em massa por CSV", expanded=False):
-        importacao_massa_contas(df, empresa, usuario)
-
-    with st.expander("Editar conta a pagar", expanded=False):
-        area_edicao(df, contas, empresa, usuario)
-
-    st.divider()
-    st.markdown("### 📋 Contas em aberto")
+    st.markdown("### Contas para pagar")
     st.download_button(
-        "⬇️ Baixar contas filtradas em CSV",
+        "Baixar contas em CSV",
         data=gerar_csv_download(contas),
         file_name=f"contas_a_pagar_{empresa}.csv",
         mime="text/csv",
@@ -1682,9 +1684,18 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         exibir_contas_com_acoes(contas, empresa, usuario)
 
     st.divider()
-    with st.expander("🗑️ Excluir conta a pagar", expanded=False):
-        area_exclusao(df, contas, empresa, usuario)
+    st.markdown("### Manutencao")
+    with st.expander("Incluir nova conta a pagar", expanded=False):
+        formulario_inclusao(df, empresa, usuario)
 
+    with st.expander("Importar contas em massa por CSV", expanded=False):
+        importacao_massa_contas(df, empresa, usuario)
+
+    with st.expander("Editar conta a pagar", expanded=False):
+        area_edicao(df, contas, empresa, usuario)
+
+    with st.expander("Excluir conta a pagar", expanded=False):
+        area_exclusao(df, contas, empresa, usuario)
 
 def main() -> None:
     configurar_pagina()
