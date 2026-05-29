@@ -17,17 +17,18 @@ Nesta versao, a funcao principal e **Contas a Pagar**:
 
 ## Persistencia Dos Dados
 
-O app nao usa banco de dados. As alteracoes manuais sao gravadas por empresa em:
+O app agora suporta Google Sheets como fonte principal de persistencia. Cada empresa pode ficar em uma aba propria da mesma planilha, por exemplo `MHLOG` e `MH_BRASIL`.
 
-`data/empresas/<EMPRESA>/dados_portal.csv`
+Configuracao esperada em `st.secrets`:
 
-Cada empresa le e grava o proprio arquivo. A pasta `data/empresas/` precisa ser persistida fora do ciclo de vida temporario da hospedagem.
+- `google_sheets.spreadsheet_id`
+- `google_service_account` com a chave da service account
 
-Antes de cada gravacao, o app cria backup automatico em:
+Quando essa configuracao existe, o app le e grava direto na planilha. Antes de cada gravacao, ele cria uma aba de backup no proprio Google Drive com prefixo `BACKUP__`.
 
-`data/backups/<EMPRESA>/dados_portal_YYYYMMDD_HHMMSS.csv`
+Na primeira execucao com Google Sheets ativo, se a planilha estiver vazia e ainda existir um CSV local com dados, o app pode migrar essa base automaticamente para a aba da empresa.
 
-Se o CSV operacional sumir, ficar vazio ou sofrer uma queda suspeita de registros/valor, o portal mostra alerta e bloqueia a sobrescrita ate confirmacao explicita.
+Se a configuracao de Google Sheets nao existir, o app continua funcionando em modo local com CSV, mas isso nao e persistencia confiavel para Streamlit Cloud.
 
 ## Como Rodar Localmente
 
@@ -77,18 +78,28 @@ Quando um usuario entra com a senha padrao `123456`, o portal exibe um aviso par
 Depois do login, tambem e possivel trocar a senha pelo botao `Trocar senha` na barra lateral.
 O arquivo `usuarios_perfis.txt` fica na pasta do projeto apenas para consulta e e atualizado automaticamente a partir do `config_clientes.json`.
 
+## Como Ativar No Drive
+
+1. Crie uma planilha privada no Google Drive.
+2. Copie o `spreadsheet_id` para `st.secrets`.
+3. Crie uma `service account` no Google Cloud e compartilhe a planilha com o e-mail dela.
+4. Preencha `google_service_account` em `st.secrets`.
+5. Crie uma aba para cada empresa, ou deixe o app criar automaticamente.
+
+O caminho `H:\\Meu Drive\\...` do seu computador e apenas a pasta local sincronizada pelo Google Drive. Ele nao substitui a persistencia real da nuvem no Streamlit Cloud, que depende da API do Google Sheets.
+
 ## Recuperacao De Dados
 
-Se a base operacional de uma empresa desaparecer ou voltar zerada apos reinicio, use o alerta da tela de Contas a Pagar para restaurar o backup mais recente.
+Se a aba operacional sumir ou voltar vazia, use o alerta da tela de Contas a Pagar para restaurar o backup mais recente da propria planilha.
 
 Fluxo de recuperacao:
 
-1. Abra `data/backups/<EMPRESA>/`.
-2. Localize o arquivo `dados_portal_YYYYMMDD_HHMMSS.csv` mais recente.
-3. Copie esse backup para `data/empresas/<EMPRESA>/dados_portal.csv`.
+1. Abra a planilha configurada em `google_sheets.spreadsheet_id`.
+2. Localize a aba de backup mais recente, com prefixo `BACKUP__`.
+3. Restaure a aba da empresa a partir desse backup.
 4. Reabra o portal.
 
-Se nao houver backup local, restaure a partir de uma exportacao anterior ou de um storage externo.
+Para uso local sem Google Sheets, o app ainda usa `data/empresas/<EMPRESA>/dados_portal.csv` e `data/backups/<EMPRESA>/`.
 
 ## Publicacao No Streamlit Community Cloud
 
@@ -141,4 +152,4 @@ Nao coloque senhas reais no GitHub. Para producao, use `st.secrets` no Streamlit
 
 Os anexos salvos localmente no Streamlit Community Cloud podem ser temporarios, porque a hospedagem gratuita nao e um armazenamento permanente. Para uso real com clientes, o proximo passo e guardar anexos em servico externo seguro, como Google Drive controlado, S3 ou banco com storage.
 
-Para dados operacionais, a recomendacao futura e substituir CSV local por banco de dados ou storage externo com retencao e backup.
+Para dados operacionais, a recomendacao futura continua sendo um banco de dados ou storage externo com retencao e backup. O modo Google Sheets cobre persistencia simples e compartilhada, mas nao substitui um banco relacional.

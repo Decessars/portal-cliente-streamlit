@@ -33,6 +33,8 @@ CONFIG_PATH = BASE_DIR / "config_clientes.json"
 LOGO_FULL_PATH = ASSETS_DIR / "mh_log_logo_app_512.png"
 SESSOES_PATH = DATA_DIR / "sessoes_portal.json"
 SESSAO_LOGIN_SEGUNDOS = 60 * 60
+BACKUP_SHEET_PREFIX = "BACKUP__"
+SHEETS_MAX_TITLE_LEN = 100
 
 TEMA_MH = {
     "bg": "#f4faf5",
@@ -751,11 +753,229 @@ def caminho_dados_empresa(empresa: str) -> Path:
     return pasta_empresa(empresa) / "dados_portal.csv"
 
 
+def usar_google_sheets() -> bool:
+    try:
+        configuracao = st.secrets.get("google_sheets", {})
+        credenciais = st.secrets.get("google_service_account", {})
+    except Exception:
+        return False
+    return bool(str(configuracao.get("spreadsheet_id", "")).strip() and credenciais)
+
+
+def obter_config_google_sheets() -> dict[str, object]:
+    try:
+        configuracao = dict(st.secrets.get("google_sheets", {}))
+        credenciais = dict(st.secrets.get("google_service_account", {}))
+    except Exception as erro:
+        raise RuntimeError("Configuração do Google Sheets indisponível em st.secrets.") from erro
+
+    spreadsheet_id = str(configuracao.get("spreadsheet_id", "")).strip()
+    if not spreadsheet_id:
+        raise RuntimeError("Defina google_sheets.spreadsheet_id em st.secrets.")
+    if not credenciais:
+        raise RuntimeError("Defina google_service_account em st.secrets.")
+
+    return {
+        "spreadsheet_id": spreadsheet_id,
+        "service_account": credenciais,
+        "sheet_prefix": str(configuracao.get("sheet_prefix", "")).strip(),
+    }
+
+
+def nome_aba_empresa(empresa: str) -> str:
+    return slug_empresa(empresa)[:SHEETS_MAX_TITLE_LEN]
+
+
+def nome_aba_backup(empresa: str, timestamp: str | None = None) -> str:
+    momento = timestamp or datetime.now().strftime("%Y%m%d_%H%M%S")
+    nome = f"{BACKUP_SHEET_PREFIX}{slug_empresa(empresa)}__{momento}"
+    return nome[:SHEETS_MAX_TITLE_LEN]
+
+
+def nome_aba_backup_prefixo(empresa: str) -> str:
+    return f"{BACKUP_SHEET_PREFIX}{slug_empresa(empresa)}__"
+
+
+@st.cache_resource(show_spinner=False)
+def cliente_google_sheets() -> object:
+    if not usar_google_sheets():
+        raise RuntimeError("Google Sheets nao configurado.")
+
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+    except ImportError as erro:
+        raise RuntimeError(
+            "Instale gspread e google-auth para usar Google Sheets como persistencia."
+        ) from erro
+
+    configuracao = obter_config_google_sheets()
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    credenciais = Credentials.from_service_account_info(configuracao["service_account"], scopes=scopes)
+    return gspread.authorize(credenciais)
+
+
+def planilha_google() -> object:
+    cliente = cliente_google_sheets()
+    configuracao = obter_config_google_sheets()
+    return cliente.open_by_key(str(configuracao["spreadsheet_id"]))
+
+
+def worksheet_empresa_existe(empresa: str) -> bool:
+    if not usar_google_sheets():
+        return caminho_dados_empresa(empresa).exists()
+    planilha = planilha_google()
+    nome = nome_aba_empresa(empresa)
+    return any(aba.title == nome for aba in planilha.worksheets())
+
+
+def obter_worksheet_empresa(empresa: str, criar: bool = False):
+    if not usar_google_sheets():
+        return None
+
+    planilha = planilha_google()
+    nome = nome_aba_empresa(empresa)
+    try:
+        return planilha.worksheet(nome)
+    except Exception:
+        if not criar:
+            return None
+        aba = planilha.add_worksheet(title=nome, rows=max(200, len(COLUNAS_DADOS) + 10), cols=len(COLUNAS_DADOS))
+        aba.update([COLUNAS_DADOS], value_input_option="RAW")
+        return aba
+
+
+def converter_dataframe_para_linhas(df: pd.DataFrame) -> list[list[object]]:
+    dados = normalizar_dataframe(df)
+    dados = dados[[coluna for coluna in COLUNAS_DADOS if coluna in dados.columns]].copy()
+    for coluna in COLUNAS_DADOS:
+        if coluna not in dados.columns:
+            dados[coluna] = ""
+    dados = dados[COLUNAS_DADOS].copy()
+
+    linhas: list[list[object]] = [COLUNAS_DADOS]
+    for _, linha in dados.iterrows():
+        valores = []
+        for coluna in COLUNAS_DADOS:
+            valor = linha.get(coluna, "")
+            if pd.isna(valor):
+                valor = ""
+            elif isinstance(valor, bool):
+                valor = bool(valor)
+            elif isinstance(valor, (pd.Timestamp, datetime)):
+                valor = valor.strftime("%Y-%m-%d %H:%M:%S")
+            valores.append(valor)
+        linhas.append(valores)
+    return linhas
+
+
+def dataframe_from_linhas(linhas: list[list[object]]) -> pd.DataFrame:
+    if not linhas:
+        return normalizar_dataframe(pd.DataFrame(columns=COLUNAS_DADOS))
+
+    cabecalho = [str(item).strip() for item in linhas[0]]
+    registros = []
+    for linha in linhas[1:]:
+        if not any(str(valor).strip() for valor in linha):
+            continue
+        registro = {}
+        for indice, coluna in enumerate(COLUNAS_DADOS):
+            valor = linha[indice] if indice < len(linha) else ""
+            registro[coluna] = valor
+        registros.append(registro)
+    return normalizar_dataframe(pd.DataFrame(registros, columns=COLUNAS_DADOS))
+
+
+def ler_df_empresa_google(empresa: str) -> pd.DataFrame:
+    aba = obter_worksheet_empresa(empresa, criar=False)
+    if aba is None:
+        return normalizar_dataframe(pd.DataFrame(columns=COLUNAS_DADOS))
+    valores = aba.get_all_values()
+    if not valores:
+        return normalizar_dataframe(pd.DataFrame(columns=COLUNAS_DADOS))
+    return dataframe_from_linhas(valores)
+
+
+def migrar_csv_local_para_google_sheets(empresa: str) -> pd.DataFrame:
+    caminho = caminho_dados_empresa(empresa)
+    if not caminho.exists():
+        return normalizar_dataframe(pd.DataFrame(columns=COLUNAS_DADOS))
+
+    df_local = normalizar_dataframe(pd.read_csv(caminho))
+    if df_local.empty:
+        return df_local
+
+    aba = obter_worksheet_empresa(empresa, criar=True)
+    aba.clear()
+    aba.update(converter_dataframe_para_linhas(df_local), value_input_option="RAW")
+    return df_local
+
+
+def listar_backups_empresa_google(empresa: str) -> list[str]:
+    planilha = planilha_google()
+    prefixo = nome_aba_backup_prefixo(empresa)
+    backups = [aba.title for aba in planilha.worksheets() if aba.title.startswith(prefixo)]
+    return sorted(backups, reverse=True)
+
+
+def criar_backup_empresa_google(empresa: str) -> str | None:
+    aba_origem = obter_worksheet_empresa(empresa, criar=False)
+    if aba_origem is None:
+        return None
+
+    valores = aba_origem.get_all_values()
+    if not valores:
+        return None
+
+    planilha = planilha_google()
+    nome_backup = nome_aba_backup(empresa)
+    contador = 1
+    while any(aba.title == nome_backup for aba in planilha.worksheets()):
+        nome_backup = f"{BACKUP_SHEET_PREFIX}{slug_empresa(empresa)}__{datetime.now().strftime('%Y%m%d_%H%M%S')}_{contador}"
+        nome_backup = nome_backup[:SHEETS_MAX_TITLE_LEN]
+        contador += 1
+
+    rows = max(2, len(valores))
+    cols = max(2, len(valores[0]) if valores else len(COLUNAS_DADOS))
+    aba_backup = planilha.add_worksheet(title=nome_backup, rows=rows, cols=cols)
+    aba_backup.update(valores, value_input_option="RAW")
+    return nome_backup
+
+
+def restaurar_backup_empresa_google(empresa: str, backup: str | None = None) -> str:
+    planilha = planilha_google()
+    aba_backup_nome = backup or (listar_backups_empresa_google(empresa)[0] if listar_backups_empresa_google(empresa) else "")
+    if not aba_backup_nome:
+        raise ValueError("Nenhum backup encontrado para restauracao.")
+
+    aba_backup = planilha.worksheet(aba_backup_nome)
+    valores = aba_backup.get_all_values()
+    if not valores:
+        raise ValueError("O backup selecionado esta vazio.")
+
+    aba_empresa = obter_worksheet_empresa(empresa, criar=True)
+    aba_empresa.clear()
+    aba_empresa.update(valores, value_input_option="RAW")
+    return aba_empresa.title
+
+
+def identificar_base_operacional(empresa: str) -> str:
+    if usar_google_sheets():
+        return f"Google Sheets / {nome_aba_empresa(empresa)}"
+    return str(caminho_dados_empresa(empresa))
+
+
 def pasta_backups_empresa(empresa: str) -> Path:
     return BACKUPS_DIR / slug_empresa(empresa)
 
 
-def listar_backups_empresa(empresa: str) -> list[Path]:
+def listar_backups_empresa(empresa: str) -> list[Path | str]:
+    if usar_google_sheets():
+        return listar_backups_empresa_google(empresa)
+
     pasta = pasta_backups_empresa(empresa)
     if not pasta.exists():
         return []
@@ -763,7 +983,11 @@ def listar_backups_empresa(empresa: str) -> list[Path]:
     return sorted(backups, key=lambda caminho: caminho.stat().st_mtime, reverse=True)
 
 
-def criar_backup_empresa(empresa: str, origem: Path | None = None) -> Path | None:
+def criar_backup_empresa(empresa: str, origem: Path | None = None) -> Path | str | None:
+    if usar_google_sheets():
+        nome_backup = criar_backup_empresa_google(empresa)
+        return nome_backup
+
     origem = origem or caminho_dados_empresa(empresa)
     if not origem.exists():
         return None
@@ -781,12 +1005,12 @@ def criar_backup_empresa(empresa: str, origem: Path | None = None) -> Path | Non
 
 
 def obter_resumo_base_empresa(empresa: str, df_base: pd.DataFrame | None = None) -> dict:
-    caminho = caminho_dados_empresa(empresa)
+    caminho = identificar_base_operacional(empresa)
     backups = listar_backups_empresa(empresa)
     resumo = {
         "empresa": empresa,
         "caminho": caminho,
-        "existe": caminho.exists(),
+        "existe": worksheet_empresa_existe(empresa),
         "status": "ok",
         "erro": "",
         "qtd_registros": 0,
@@ -798,17 +1022,17 @@ def obter_resumo_base_empresa(empresa: str, df_base: pd.DataFrame | None = None)
     }
 
     if df_base is None:
-        if not caminho.exists():
+        if not worksheet_empresa_existe(empresa):
             resumo["status"] = "ausente"
             return resumo
         try:
-            df_base = pd.read_csv(caminho)
+            df_base = carregar_dados_empresa(empresa)
         except Exception as erro:
             resumo["status"] = "erro"
             resumo["erro"] = str(erro)
             return resumo
 
-    if not caminho.exists():
+    if not worksheet_empresa_existe(empresa):
         resumo["status"] = "ausente"
 
     dados = normalizar_dataframe(df_base)
@@ -843,7 +1067,11 @@ def base_operacional_suspeita(resumo_atual: dict, df_novo: pd.DataFrame) -> tupl
     return False, ""
 
 
-def restaurar_backup_empresa(empresa: str, backup: Path | None = None) -> Path:
+def restaurar_backup_empresa(empresa: str, backup: Path | None = None) -> Path | str:
+    if usar_google_sheets():
+        backup_nome = str(backup) if backup is not None else None
+        return restaurar_backup_empresa_google(empresa, backup_nome)
+
     backup = backup or obter_resumo_base_empresa(empresa).get("ultimo_backup")
     if not backup:
         raise ValueError("Nenhum backup encontrado para restauracao.")
@@ -866,6 +1094,7 @@ def exibir_alerta_base_operacional(resumo: dict) -> None:
     quantidade_backups = int(resumo.get("qtd_backups", 0) or 0)
     ultimo_backup = resumo.get("ultimo_backup")
     status = str(resumo.get("status", "ok"))
+    fonte = "Planilha" if usar_google_sheets() else "CSV"
 
     if status == "ok" and int(resumo.get("qtd_registros", 0) or 0) > 0:
         return
@@ -886,7 +1115,7 @@ def exibir_alerta_base_operacional(resumo: dict) -> None:
     st.markdown(
         f"""
         **Empresa:** {escape(empresa)}  
-        **CSV esperado:** `{caminho}`  
+        **{fonte} esperada:** `{caminho}`  
         **Backups encontrados:** {quantidade_backups}
         """,
         unsafe_allow_html=True,
@@ -957,7 +1186,11 @@ def carregar_base_demo() -> pd.DataFrame:
 def carregar_dados_empresa(empresa: str) -> pd.DataFrame:
     """Carrega a base operacional isolada de uma empresa."""
     caminho = caminho_dados_empresa(empresa)
-    if caminho.exists():
+    if usar_google_sheets():
+        df = ler_df_empresa_google(empresa)
+        if df.empty:
+            df = migrar_csv_local_para_google_sheets(empresa)
+    elif caminho.exists():
         df = pd.read_csv(caminho)
     else:
         df = pd.DataFrame(columns=COLUNAS_DADOS)
@@ -1015,12 +1248,21 @@ def salvar_dados_empresa(
         )
         return None
 
-    if caminho.exists():
-        criar_backup_empresa(empresa, caminho)
-    dados.to_csv(caminho, index=False, encoding="utf-8-sig")
+    if usar_google_sheets():
+        criar_backup_empresa(empresa)
+        aba = obter_worksheet_empresa(empresa, criar=True)
+        valores = converter_dataframe_para_linhas(dados)
+        aba.clear()
+        aba.update(valores, value_input_option="RAW")
+        caminho_saida: Path | str = identificar_base_operacional(empresa)
+    else:
+        if caminho.exists():
+            criar_backup_empresa(empresa, caminho)
+        dados.to_csv(caminho, index=False, encoding="utf-8-sig")
+        caminho_saida = caminho
     if st.session_state.get("salvamento_pendente", {}).get("empresa") == empresa:
         st.session_state.pop("salvamento_pendente", None)
-    return caminho
+    return caminho_saida
 
 
 def formatar_moeda_br(valor: float) -> str:
