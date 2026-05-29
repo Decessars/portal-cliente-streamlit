@@ -2438,7 +2438,10 @@ def selecionar_ordenacao_contas(campo: str) -> None:
     atual = st.session_state.get("contas_ordem_campo", "")
     crescente = st.session_state.get("contas_ordem_crescente", True)
     st.session_state.contas_ordem_campo = campo
-    st.session_state.contas_ordem_crescente = not crescente if atual == campo else True
+    if atual == campo:
+        st.session_state.contas_ordem_crescente = not crescente
+    else:
+        st.session_state.contas_ordem_crescente = False if campo == "vencimento" else True
 
 
 def rotulo_ordenacao(campo: str) -> str:
@@ -2452,13 +2455,14 @@ def ordenar_contas_exibidas(contas: pd.DataFrame) -> pd.DataFrame:
     campo = st.session_state.get("contas_ordem_campo", "")
     if campo not in ORDENACOES_CONTAS:
         dados = contas.copy()
+        dados["_ordem_vencimento"] = pd.to_datetime(dados.get("vencimento_dt", dados.get("vencimento", "")), errors="coerce")
         dados["_ordem_recente"] = pd.to_datetime(dados.get("criado_em", ""), errors="coerce")
         dados["_ordem_documento"] = dados.get("documento", "").astype(str)
         return dados.sort_values(
-            ["_ordem_recente", "_ordem_documento"],
-            ascending=[False, False],
+            ["_ordem_vencimento", "_ordem_recente", "_ordem_documento"],
+            ascending=[False, False, False],
             na_position="last",
-        ).drop(columns=["_ordem_recente", "_ordem_documento"], errors="ignore")
+        ).drop(columns=["_ordem_vencimento", "_ordem_recente", "_ordem_documento"], errors="ignore")
 
     info = ORDENACOES_CONTAS[campo]
     coluna = str(info["coluna"])
