@@ -2118,8 +2118,9 @@ def tela_login(config: dict) -> None:
     )
 
     st.write("")
-    _, col_login, _ = st.columns([1, 1.05, 1])
-    with col_login:
+    col_esquerda, col_direita = st.columns([1.0, 1.15], gap="large")
+
+    with col_esquerda:
         st.markdown(
             f"""
             <div class="login-logo">{logo_html}</div>
@@ -2132,6 +2133,8 @@ def tela_login(config: dict) -> None:
             """,
             unsafe_allow_html=True,
         )
+
+    with col_direita:
         st.write("")
         with st.container(border=True):
             st.subheader("Entrar no portal")
