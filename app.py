@@ -1843,6 +1843,16 @@ def parse_valor_br(valor: object) -> float | None:
         return None
 
 
+def parse_data_br(valor: object) -> pd.Timestamp | None:
+    texto = str(valor or "").strip()
+    if not texto:
+        return None
+    data = pd.to_datetime(texto, errors="coerce", dayfirst=True)
+    if pd.isna(data):
+        return None
+    return pd.Timestamp(data)
+
+
 def preparar_importacao_contas(df_importado: pd.DataFrame, empresa: str, usuario: str) -> tuple[pd.DataFrame, list[str]]:
     df_importado.columns = [str(coluna).strip().lower() for coluna in df_importado.columns]
     faltantes = [coluna for coluna in COLUNAS_IMPORTACAO_OBRIGATORIAS if coluna not in df_importado.columns]
@@ -2576,11 +2586,14 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
         escrever_celula_conta(cols[3], formatar_moeda_br(float(linha.get("valor", 0) or 0)), nivel, nowrap=True)
         escrever_celula_conta(cols[4], "vencido" if nivel == "vencida" else str(linha.get("status", "")), nivel, nowrap=True, indicador=indicador)
         escrever_celula_conta(cols[5], str(linha.get("documento", "")), nivel)
-        acao_cols = cols[6].columns(3)
+        acao_cols = cols[6].columns(4)
         if acao_cols[0].button("✏️", key=f"editar_{indice}", help="Editar conta"):
             selecionar_conta_para_edicao(indice)
             st.rerun()
-        if acao_cols[1].button("✅", key=f"pagar_{indice}", help="Marcar como pago"):
+        if acao_cols[1].button("📋", key=f"duplicar_{indice}", help="Duplicar conta"):
+            selecionar_conta_para_duplicacao(indice)
+            st.rerun()
+        if acao_cols[2].button("✅", key=f"pagar_{indice}", help="Marcar como pago"):
             try:
                 df_atualizado = marcar_conta_como_paga(df_base, indice, usuario)
                 if salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa) is None:
@@ -2589,7 +2602,7 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
                 st.rerun()
             except ValueError as erro:
                 st.error(str(erro))
-        if acao_cols[2].button("🗑️", key=f"excluir_{indice}", help="Excluir conta"):
+        if acao_cols[3].button("🗑️", key=f"excluir_{indice}", help="Excluir conta"):
             try:
                 df_atualizado = excluir_conta_a_pagar(df_base, indice, usuario)
                 if salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa) is None:
@@ -2784,8 +2797,62 @@ def editar_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str, dados_form
     return df_atualizado
 
 
+def duplicar_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str, dados_formulario: dict) -> pd.DataFrame:
+    df_atualizado = df.copy()
+    if indice not in df_atualizado.index:
+        raise ValueError("Conta selecionada nao foi encontrada na base atual.")
+
+    posicao = df_atualizado.index.get_loc(indice)
+    if isinstance(posicao, slice):
+        posicao = posicao.start
+    elif not isinstance(posicao, int):
+        posicoes = list(posicao)
+        if not posicoes:
+            raise ValueError("Conta selecionada nao foi encontrada na base atual.")
+        posicao = posicoes[0]
+
+    linha = df_atualizado.iloc[posicao].to_dict()
+    anexo_nome, anexo_caminho = salvar_anexo(
+        dados_formulario.get("anexo"),
+        str(linha.get("empresa", "") or ""),
+        dados_formulario["documento"],
+    )
+    tipo_codigo, tipo_nome = obter_tipo_conta(dados_formulario["tipo_conta"])
+    nova_linha = dict(linha)
+    nova_linha.update(
+        {
+            "competencia": "",
+            "tipo": "conta_a_pagar",
+            "descricao": dados_formulario["descricao"],
+            "fornecedor_cliente": dados_formulario["fornecedor"],
+            "vencimento": dados_formulario["vencimento"].strftime("%Y-%m-%d"),
+            "pagamento_recebimento": "",
+            "valor": float(dados_formulario["valor"]),
+            "status": dados_formulario["status"],
+            "categoria": dados_formulario["categoria"],
+            "observacao": dados_formulario["observacao"],
+            "documento": dados_formulario["documento"],
+            "tipo_conta_codigo": tipo_codigo,
+            "tipo_conta_nome": tipo_nome,
+            "anexo_nome": anexo_nome or str(linha.get("anexo_nome", "") or ""),
+            "anexo_caminho": anexo_caminho or str(linha.get("anexo_caminho", "") or ""),
+            "codigo_pagamento": dados_formulario["codigo_pagamento"],
+            "criado_em": agora_br(),
+            "criado_por": usuario,
+            "excluido_em": "",
+            "excluido_por": "",
+            "ativo": True,
+        }
+    )
+    return pd.concat([df, pd.DataFrame([nova_linha], columns=COLUNAS_DADOS)], ignore_index=True)
+
+
 def selecionar_conta_para_edicao(indice: int) -> None:
     st.session_state.conta_edicao_indice = indice
+
+
+def selecionar_conta_para_duplicacao(indice: int) -> None:
+    st.session_state.conta_duplicacao_indice = indice
 
 
 def selecionar_manutencao(secao: str) -> None:
@@ -3039,14 +3106,149 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
     st.rerun()
 
 
+def formulario_duplicacao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str, key_prefix: str) -> None:
+    if indice not in df.index:
+        st.error("Conta selecionada nao foi encontrada.")
+        if st.button("Fechar", key=f"{key_prefix}_fechar_indice_invalido"):
+            st.session_state.pop("conta_duplicacao_indice", None)
+            st.session_state.manutencao_ativa = ""
+            st.rerun()
+        return
+
+    linha = df.loc[indice]
+    vencimento_atual = pd.to_datetime(linha.get("vencimento"), errors="coerce")
+    if pd.isna(vencimento_atual):
+        vencimento_atual = pd.Timestamp(datetime.now().date())
+
+    opcoes_tipo = opcoes_com_novo(opcoes_tipo_conta_com_historico(df))
+    tipo_codigo_atual = str(linha.get("tipo_conta_codigo", "") or "").strip()
+    tipo_nome_atual = str(linha.get("tipo_conta_nome", "") or "").strip()
+    tipo_rotulo = f"{tipo_codigo_atual} - {tipo_nome_atual}" if tipo_codigo_atual and tipo_nome_atual else tipo_nome_atual
+    if not tipo_rotulo:
+        tipo_rotulo = opcoes_tipo[indice_padrao_sem_novo(opcoes_tipo)]
+    if tipo_rotulo not in opcoes_tipo:
+        opcoes_tipo.insert(0, tipo_rotulo)
+    tipo_idx = opcoes_tipo.index(tipo_rotulo)
+
+    st.caption(
+        "Ao duplicar, ajuste a data do tributo e o valor antes de salvar. Os demais campos permanecem iguais e podem ser editados."
+    )
+    st.caption(
+        f"{formatar_data_br(linha.get('vencimento'))} | "
+        f"{linha.get('fornecedor_cliente', '')} | "
+        f"{formatar_moeda_br(float(linha.get('valor', 0) or 0))}"
+    )
+
+    tipo_conta_sel, tipo_conta_novo = campo_opcao_nova(
+        st,
+        "Tipo de conta",
+        opcoes_tipo,
+        "Digite o novo tipo de conta",
+        f"{key_prefix}_tipo_conta",
+        index=tipo_idx,
+    )
+
+    with st.form(f"{key_prefix}_form_duplicar_conta"):
+        c1, c2 = st.columns(2)
+        descricao = c1.text_input("Descricao", value=str(linha.get("descricao", "")))
+        fornecedor = c2.text_input("Fornecedor", value=str(linha.get("fornecedor_cliente", "")))
+
+        c3, c4, c5 = st.columns([1, 1, 1])
+        vencimento_texto = c3.text_input(
+            "Data do tributo",
+            value="",
+            placeholder=vencimento_atual.strftime("%d/%m/%Y"),
+        )
+        valor_texto = c4.text_input("Valor do tributo", value="", placeholder="Ex.: 1.000,00")
+        status_opcoes = ["aberto", "pendente", "vencido"]
+        status_atual = str(linha.get("status", "aberto")).lower()
+        status = c5.selectbox("Status", status_opcoes, index=status_opcoes.index(status_atual) if status_atual in status_opcoes else 0)
+
+        observacao = st.text_area(
+            "Descricao / observacao livre",
+            value=str(linha.get("observacao", "") or "").strip(),
+            height=88,
+        )
+        anexo_atual = str(linha.get("anexo_nome", "") or "").strip()
+        if anexo_atual:
+            st.caption(f"Anexo atual: {anexo_atual}")
+        c6, c7 = st.columns([1, 1])
+        anexo = c6.file_uploader("Novo anexo", type=["pdf", "png", "jpg", "jpeg", "xml", "csv", "xlsx"])
+        codigo_pagamento = c7.text_area(
+            "Codigo de barras ou chave Pix",
+            value=str(linha.get("codigo_pagamento", "") or "").strip(),
+            height=88,
+        )
+        b1, b2 = st.columns(2)
+        salvar = b1.form_submit_button("Salvar duplicacao", use_container_width=True)
+        cancelar = b2.form_submit_button("Cancelar", use_container_width=True)
+
+    if cancelar:
+        st.session_state.pop("conta_duplicacao_indice", None)
+        st.session_state.manutencao_ativa = ""
+        st.rerun()
+    if not salvar:
+        return
+
+    tipo_conta = resolver_opcao_digitavel(tipo_conta_sel, tipo_conta_novo)
+    _, tipo_nome = obter_tipo_conta(tipo_conta)
+    vencimento = parse_data_br(vencimento_texto)
+    valor = parse_valor_br(valor_texto)
+    if vencimento is None or valor is None or valor <= 0:
+        st.error("Informe uma data de tributo valida e um valor maior que zero antes de salvar a duplicacao.")
+        return
+    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip():
+        st.error("Preencha descricao, fornecedor e tipo de conta.")
+        return
+    if not str(linha.get("anexo_nome", "") or "").strip() and anexo is None and not codigo_pagamento.strip():
+        st.error("Inclua um anexo ou informe o codigo de barras/chave Pix.")
+        return
+
+    documento_base = str(linha.get("documento", "") or "").strip()
+    documento_novo = documento_base or f"AP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    dados_formulario = {
+        "descricao": descricao.strip(),
+        "fornecedor": fornecedor.strip(),
+        "vencimento": vencimento.to_pydatetime().date(),
+        "valor": valor,
+        "status": status,
+        "tipo_conta": tipo_conta,
+        "categoria": tipo_nome.strip(),
+        "documento": documento_novo,
+        "observacao": observacao.strip(),
+        "anexo": anexo,
+        "codigo_pagamento": codigo_pagamento.strip(),
+    }
+    try:
+        df_atualizado = duplicar_conta_a_pagar(df, indice, usuario, dados_formulario)
+    except ValueError as erro:
+        st.error(str(erro))
+        return
+
+    if salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa) is None:
+        return
+    st.session_state.pop("conta_duplicacao_indice", None)
+    st.session_state.manutencao_ativa = ""
+    st.success("Conta duplicada com sucesso.")
+    st.rerun()
+
+
 if hasattr(st, "dialog"):
     @st.dialog("Editar conta a pagar")
     def janela_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
         formulario_edicao_conta(df, indice, empresa, usuario, "janela_edicao")
+
+    @st.dialog("Duplicar conta a pagar")
+    def janela_duplicacao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
+        formulario_duplicacao_conta(df, indice, empresa, usuario, "janela_duplicacao")
 else:
     def janela_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
         st.warning("Atualize o Streamlit para abrir edicao em janela. Usando edicao na pagina.")
         formulario_edicao_conta(df, indice, empresa, usuario, "janela_edicao")
+
+    def janela_duplicacao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
+        st.warning("Atualize o Streamlit para abrir duplicacao em janela. Usando duplicacao na pagina.")
+        formulario_duplicacao_conta(df, indice, empresa, usuario, "janela_duplicacao")
 
 
 def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: str) -> None:
@@ -3167,14 +3369,19 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     if indice_edicao is not None:
         janela_edicao_conta(df, indice_edicao, empresa, usuario)
 
+    indice_duplicacao = st.session_state.get("conta_duplicacao_indice")
+    if indice_duplicacao is not None:
+        janela_duplicacao_conta(df, indice_duplicacao, empresa, usuario)
+
     st.divider()
     st.markdown("### Manutencao")
 
     st.session_state.setdefault("manutencao_ativa", "")
-    a1, a2, a3, espaco = st.columns([1.2, 1.2, 1.2, 5.4], gap="small")
+    a1, a2, a3, a4, espaco = st.columns([1.0, 1.0, 1.0, 1.0, 4.8], gap="small")
     a1.button("➕ Incluir", help="Incluir nova conta a pagar", key="btn_manutencao_incluir", on_click=selecionar_manutencao, args=("incluir",), use_container_width=True)
     a2.button("📥 Importar", help="Importar contas em massa por CSV", key="btn_manutencao_importar", on_click=selecionar_manutencao, args=("importar",), use_container_width=True)
     a3.button("🗑️ Excluir", help="Excluir conta a pagar", key="btn_manutencao_excluir", on_click=selecionar_manutencao, args=("excluir",), use_container_width=True)
+    a4.button("📋 Duplicar", help="Duplicar conta a pagar", key="btn_manutencao_duplicar", on_click=selecionar_manutencao, args=("duplicar",), use_container_width=True)
 
     if st.session_state.manutencao_ativa == "incluir":
         st.markdown("#### ➕ Incluir nova conta a pagar")
@@ -3185,6 +3392,13 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     elif st.session_state.manutencao_ativa == "excluir":
         st.markdown("#### 🗑️ Excluir conta a pagar")
         area_exclusao(df, contas, empresa, usuario)
+    elif st.session_state.manutencao_ativa == "duplicar":
+        st.markdown("#### 📋 Duplicar conta a pagar")
+        indice_duplicacao = st.session_state.get("conta_duplicacao_indice")
+        if indice_duplicacao is None:
+            st.info("Selecione uma conta na tabela para duplicar.")
+        else:
+            formulario_duplicacao_conta(df, indice_duplicacao, empresa, usuario, "area_duplicacao")
 
     renderizar_salvamento_pendente()
 
