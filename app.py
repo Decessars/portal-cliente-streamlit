@@ -723,6 +723,22 @@ def remover_linhas_em_branco(df: pd.DataFrame) -> pd.DataFrame:
     return df.loc[~vazia].copy()
 
 
+def normalizar_valor_operacional(valor: object) -> float:
+    if pd.isna(valor):
+        return 0.0
+    if isinstance(valor, (int, float)):
+        return float(valor)
+
+    texto = str(valor).strip()
+    if not texto:
+        return 0.0
+    texto = texto.replace("R$", "").replace(" ", "")
+    if "," in texto:
+        texto = texto.replace(".", "").replace(",", ".")
+    numero = pd.to_numeric(texto, errors="coerce")
+    return float(numero) if not pd.isna(numero) else 0.0
+
+
 def normalizar_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df = df.loc[:, ~df.columns.duplicated()].copy()
     df = remover_linhas_em_branco(df)
@@ -731,7 +747,7 @@ def normalizar_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             df[coluna] = True if coluna == "ativo" else ""
 
     df = df[COLUNAS_DADOS].copy()
-    df["valor"] = pd.to_numeric(df["valor"], errors="coerce").fillna(0)
+    df["valor"] = df["valor"].apply(normalizar_valor_operacional)
     for coluna in COLUNAS_TEXTO:
         df[coluna] = df[coluna].fillna("").astype(str)
     df["ativo"] = df["ativo"].apply(normalizar_ativo)
@@ -1065,7 +1081,8 @@ def obter_resumo_base_empresa(empresa: str, df_base: pd.DataFrame | None = None)
     contas_ativas = dados.loc[(dados["tipo"].astype(str) == "conta_a_pagar") & dados["ativo"]].copy()
     resumo["qtd_contas_ativas"] = int(len(contas_ativas))
     resumo["valor_contas_ativas"] = float(pd.to_numeric(contas_ativas["valor"], errors="coerce").fillna(0).sum()) if not contas_ativas.empty else 0.0
-    if caminho.exists() and not resumo["qtd_registros"]:
+    caminho_local = caminho_dados_empresa(empresa)
+    if caminho_local.exists() and not resumo["qtd_registros"]:
         resumo["status"] = "vazia"
     return resumo
 
