@@ -37,17 +37,17 @@ BACKUP_SHEET_PREFIX = "BACKUP__"
 SHEETS_MAX_TITLE_LEN = 100
 
 TEMA_MH = {
-    "bg": "#f4faf5",
+    "bg": "#f5f7f8",
     "panel": "#ffffff",
-    "panel_soft": "#e9f5ec",
-    "text": "#173326",
-    "muted": "#60776a",
-    "accent": "#2f8f5b",
-    "accent_alt": "#b8942d",
-    "danger": "#dc2626",
-    "ok": "#15803d",
-    "warning": "#b7791f",
-    "border": "#c8ddce",
+    "panel_soft": "#eef3f1",
+    "text": "#13221d",
+    "muted": "#5f6d67",
+    "accent": "#246b47",
+    "accent_alt": "#7c8c5a",
+    "danger": "#bf3f3f",
+    "ok": "#1f7a4b",
+    "warning": "#9a6a1f",
+    "border": "#d4ddd9",
 }
 
 # Tipos monitorados no dominio_dmls_08.py em CONTAS_PASSIVO_PAGAR_CONTROLADAS.
@@ -219,7 +219,7 @@ def configurar_pagina() -> None:
             }}
             [data-testid="stAppViewContainer"] {{
                 background:
-                    radial-gradient(circle at top left, rgba(47, 143, 91, 0.10), transparent 30rem),
+                    radial-gradient(circle at top left, rgba(36, 107, 71, 0.08), transparent 28rem),
                     linear-gradient(180deg, var(--mh-bg) 0%, #ffffff 72%);
                 color: var(--mh-text);
             }}
@@ -233,7 +233,7 @@ def configurar_pagina() -> None:
                 margin: 0 auto 0.75rem;
             }}
             .main .block-container {{
-                padding-top: 1.25rem;
+                padding-top: 1rem;
                 padding-bottom: 2rem;
             }}
             .portal-header {{
@@ -241,11 +241,11 @@ def configurar_pagina() -> None:
                 align-items: center;
                 justify-content: space-between;
                 gap: 1.25rem;
-                padding: 1.1rem 1.25rem;
+                padding: 1rem 1.15rem;
                 background: var(--mh-panel);
                 border: 1px solid var(--mh-border);
                 border-radius: 8px;
-                box-shadow: 0 10px 28px rgba(23, 51, 38, 0.08);
+                box-shadow: 0 8px 22px rgba(19, 34, 29, 0.06);
                 margin-bottom: 1rem;
             }}
             .portal-brand {{
@@ -263,7 +263,7 @@ def configurar_pagina() -> None:
             }}
             .portal-title {{
                 margin: 0;
-                font-size: 2rem;
+                font-size: 1.85rem;
                 line-height: 1.1;
                 color: var(--mh-text);
                 font-weight: 800;
@@ -286,7 +286,7 @@ def configurar_pagina() -> None:
                 border-radius: 8px;
                 background: var(--mh-panel-soft);
                 color: var(--mh-text);
-                padding: 0.55rem 0.7rem;
+                padding: 0.5rem 0.68rem;
                 font-size: 0.88rem;
                 font-weight: 700;
             }}
@@ -316,25 +316,25 @@ def configurar_pagina() -> None:
                 background: var(--mh-panel);
                 border: 1px solid var(--mh-border);
                 border-radius: 8px;
-                padding: 16px 18px;
-                box-shadow: 0 6px 18px rgba(23, 51, 38, 0.07);
+                padding: 14px 16px;
+                box-shadow: 0 6px 16px rgba(19, 34, 29, 0.05);
             }}
             [data-testid="stMetricValue"] {{
                 color: var(--mh-accent);
             }}
             .metric-grid {{
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-                gap: 1rem;
-                margin: 1rem 0;
+                grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+                gap: 0.85rem;
+                margin: 0.9rem 0;
             }}
             .metric-card {{
                 background: var(--mh-panel);
                 border: 1px solid var(--mh-border);
                 border-radius: 8px;
-                padding: 1rem 1.15rem;
+                padding: 0.95rem 1rem;
                 min-width: 0;
-                box-shadow: 0 6px 18px rgba(23, 51, 38, 0.07);
+                box-shadow: 0 6px 16px rgba(19, 34, 29, 0.05);
             }}
             .metric-label {{
                 color: var(--mh-muted);
@@ -344,7 +344,7 @@ def configurar_pagina() -> None:
             }}
             .metric-value {{
                 color: var(--mh-accent);
-                font-size: clamp(1.35rem, 3.2vw, 2rem);
+                font-size: clamp(1.25rem, 3vw, 1.85rem);
                 line-height: 1.15;
                 font-weight: 500;
                 white-space: nowrap;
@@ -377,13 +377,13 @@ def configurar_pagina() -> None:
                 border: 1px solid var(--mh-border);
                 border-radius: 8px;
                 background: var(--mh-panel);
-                box-shadow: 0 12px 34px rgba(23, 51, 38, 0.10);
-                padding: 1.4rem;
+                box-shadow: 0 10px 28px rgba(19, 34, 29, 0.08);
+                padding: 1.2rem;
                 text-align: center;
             }}
             .login-panel h2 {{
                 margin: 0 0 0.35rem;
-                font-size: 1.55rem;
+                font-size: 1.42rem;
             }}
             .login-panel p {{
                 color: var(--mh-muted);
@@ -404,8 +404,8 @@ def configurar_pagina() -> None:
                 border: 1px solid var(--mh-border);
                 border-radius: 8px;
                 background: var(--mh-panel);
-                box-shadow: 0 8px 24px rgba(23, 51, 38, 0.06);
-                padding: 1rem;
+                box-shadow: 0 8px 20px rgba(19, 34, 29, 0.05);
+                padding: 0.95rem;
                 min-height: 9rem;
             }}
             .empresa-card h3 {{
@@ -421,8 +421,8 @@ def configurar_pagina() -> None:
                 border: 1px solid var(--mh-border);
                 border-radius: 8px;
                 background: var(--mh-panel);
-                box-shadow: 0 8px 24px rgba(23, 51, 38, 0.06);
-                padding: 1rem;
+                box-shadow: 0 8px 20px rgba(19, 34, 29, 0.05);
+                padding: 0.95rem;
                 margin: 0.7rem 0 1rem;
             }}
             .small-muted {{
@@ -448,7 +448,7 @@ def configurar_pagina() -> None:
                 background: var(--mh-accent);
                 color: #ffffff;
                 font-weight: 700;
-                min-height: 2.7rem;
+                min-height: 2.65rem;
                 white-space: normal;
             }}
             div.stButton > button:hover,
@@ -492,7 +492,7 @@ def configurar_pagina() -> None:
                     align-items: flex-start;
                     flex-direction: column;
                     gap: 0.8rem;
-                    padding: 0.95rem;
+                    padding: 0.9rem;
                 }}
                 .portal-brand {{
                     align-items: flex-start;
@@ -512,7 +512,7 @@ def configurar_pagina() -> None:
                     padding: 0.5rem 0.65rem;
                 }}
                 .portal-title {{
-                    font-size: 1.35rem;
+                    font-size: 1.32rem;
                     line-height: 1.2;
                 }}
                 .portal-subtitle {{
@@ -522,10 +522,10 @@ def configurar_pagina() -> None:
                     width: 118px;
                 }}
                 .login-panel {{
-                    padding: 1rem;
+                    padding: 0.95rem;
                 }}
                 .login-panel h2 {{
-                    font-size: 1.25rem;
+                    font-size: 1.18rem;
                 }}
                 .empresa-card {{
                     min-height: 0;
