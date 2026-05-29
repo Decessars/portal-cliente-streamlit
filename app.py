@@ -3,9 +3,11 @@ from __future__ import annotations
 import base64
 import json
 import re
+import shutil
+import secrets
 import time
 import unicodedata
-from datetime import date, datetime
+from datetime import datetime
 from html import escape
 from io import BytesIO
 from pathlib import Path
@@ -24,11 +26,13 @@ DATA_DIR = BASE_DIR / "data"
 ASSETS_DIR = BASE_DIR / "assets"
 ANEXOS_DIR = DATA_DIR / "anexos"
 EMPRESAS_DATA_DIR = DATA_DIR / "empresas"
+BACKUPS_DIR = DATA_DIR / "backups"
 CSV_PATH = DATA_DIR / "dados_demo.csv"
 XLSX_PATH = DATA_DIR / "dados_demo.xlsx"
 CONFIG_PATH = BASE_DIR / "config_clientes.json"
-USUARIOS_PERFIS_PATH = BASE_DIR / "usuarios_perfis.txt"
 LOGO_FULL_PATH = ASSETS_DIR / "mh_log_logo_app_512.png"
+SESSOES_PATH = DATA_DIR / "sessoes_portal.json"
+SESSAO_LOGIN_SEGUNDOS = 60 * 60
 
 TEMA_MH = {
     "bg": "#f4faf5",
@@ -43,21 +47,6 @@ TEMA_MH = {
     "warning": "#b7791f",
     "border": "#c8ddce",
 }
-
-MESES_PT_BR = [
-    (1, "Janeiro"),
-    (2, "Fevereiro"),
-    (3, "Março"),
-    (4, "Abril"),
-    (5, "Maio"),
-    (6, "Junho"),
-    (7, "Julho"),
-    (8, "Agosto"),
-    (9, "Setembro"),
-    (10, "Outubro"),
-    (11, "Novembro"),
-    (12, "Dezembro"),
-]
 
 # Tipos monitorados no dominio_dmls_08.py em CONTAS_PASSIVO_PAGAR_CONTROLADAS.
 TIPOS_CONTA_PAGAR = {
@@ -145,6 +134,9 @@ DOCUMENTOS_DEMO_LEGADOS = {
     "AP-MHB-001",
     "AP-MHB-002",
 }
+
+LIMIAR_QUEDA_SOBRESCRITA = 0.20
+VALOR_RELEVANTE_SOBRESCRITA = 1000.0
 
 SUGESTOES_DESCRICAO = [
     "Honorários contábeis",
@@ -236,97 +228,11 @@ def configurar_pagina() -> None:
             [data-testid="stSidebar"] img {{
                 max-width: 132px;
                 display: block;
-                margin: 0 auto 0.45rem;
-            }}
-            [data-testid="stSidebar"] h1,
-            [data-testid="stSidebar"] h2,
-            [data-testid="stSidebar"] h3 {{
-                margin-bottom: 0.35rem;
-            }}
-            [data-testid="stSidebar"] [data-testid="stTextInput"] {{
-                margin-bottom: 0.2rem;
-            }}
-            [data-testid="stSidebar"] [data-testid="stTextInput"] label {{
-                padding-bottom: 0.15rem;
-            }}
-            [data-testid="stSidebar"] [data-testid="stAlert"] {{
-                padding: 0.65rem 0.75rem;
-                margin: 0.35rem 0;
-            }}
-            [data-testid="stSidebar"] div.stButton > button {{
-                min-height: 2.35rem;
+                margin: 0 auto 0.75rem;
             }}
             .main .block-container {{
                 padding-top: 1.25rem;
                 padding-bottom: 2rem;
-            }}
-            .login-shell {{
-                min-height: calc(100vh - 7rem);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 1.5rem 0;
-            }}
-            .login-spacer {{
-                height: clamp(1rem, 11vh, 5rem);
-            }}
-            .login-card {{
-                width: min(58rem, 100%);
-                display: grid;
-                grid-template-columns: minmax(17rem, 0.9fr) minmax(20rem, 1.1fr);
-                gap: 0;
-                border: 1px solid var(--mh-border);
-                border-radius: 8px;
-                background: var(--mh-panel);
-                box-shadow: 0 18px 46px rgba(23, 51, 38, 0.12);
-                overflow: hidden;
-            }}
-            .login-brand-panel {{
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                text-align: center;
-                gap: 1rem;
-                min-height: 25rem;
-                padding: 2rem 1.4rem;
-                background: linear-gradient(180deg, rgba(47, 143, 91, 0.11), rgba(233, 245, 236, 0.72));
-                border: 1px solid rgba(200, 221, 206, 0.7);
-                border-radius: 8px;
-            }}
-            .login-form-panel {{
-                padding: 2.1rem 0 0.75rem;
-            }}
-            .login-form-panel h3 {{
-                margin-top: 0;
-                margin-bottom: 0.35rem;
-                font-size: 1.45rem;
-            }}
-            .login-form-panel p {{
-                margin: 0 0 1.2rem;
-                color: var(--mh-muted);
-            }}
-            .password-panel-header {{
-                text-align: left;
-                margin-bottom: 1rem;
-            }}
-            .password-panel-header h2 {{
-                margin: 0 0 0.45rem;
-                font-size: 1.45rem;
-                line-height: 1.2;
-            }}
-            .password-panel-header p {{
-                margin: 0.35rem 0;
-                color: var(--mh-muted);
-            }}
-            .password-alert {{
-                border: 1px solid rgba(183, 121, 31, 0.25);
-                border-radius: 8px;
-                background: rgba(183, 121, 31, 0.10);
-                color: var(--mh-warning);
-                padding: 0.8rem 0.9rem;
-                font-weight: 700;
-                margin-bottom: 0.9rem;
             }}
             .portal-header {{
                 display: flex;
@@ -415,20 +321,10 @@ def configurar_pagina() -> None:
                 color: var(--mh-accent);
             }}
             .metric-grid {{
-                display: flex;
-                flex-direction: column;
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
                 gap: 1rem;
                 margin: 1rem 0;
-            }}
-            .metric-row {{
-                display: grid;
-                gap: 1rem;
-            }}
-            .metric-row-top {{
-                grid-template-columns: repeat(4, minmax(0, 1fr));
-            }}
-            .metric-row-bottom {{
-                grid-template-columns: repeat(3, minmax(0, 1fr));
             }}
             .metric-card {{
                 background: var(--mh-panel);
@@ -437,14 +333,6 @@ def configurar_pagina() -> None:
                 padding: 1rem 1.15rem;
                 min-width: 0;
                 box-shadow: 0 6px 18px rgba(23, 51, 38, 0.07);
-            }}
-            .metric-card-critico {{
-                border-color: rgba(220, 38, 38, 0.38);
-                background: rgba(220, 38, 38, 0.06);
-            }}
-            .metric-card-alerta {{
-                border-color: rgba(183, 121, 31, 0.38);
-                background: rgba(183, 121, 31, 0.07);
             }}
             .metric-label {{
                 color: var(--mh-muted);
@@ -459,15 +347,6 @@ def configurar_pagina() -> None:
                 font-weight: 500;
                 white-space: nowrap;
             }}
-            .metric-card-critico .metric-label,
-            .metric-card-critico .metric-value {{
-                color: var(--mh-danger);
-                font-weight: 700;
-            }}
-            .metric-card-alerta .metric-label,
-            .metric-card-alerta .metric-value {{
-                color: var(--mh-warning);
-            }}
             .metric-delta {{
                 display: inline-flex;
                 align-items: center;
@@ -480,33 +359,29 @@ def configurar_pagina() -> None:
                 font-size: 0.85rem;
                 font-weight: 800;
             }}
-            .metric-card-critico .metric-delta {{
-                background: rgba(220, 38, 38, 0.12);
-                color: var(--mh-danger);
-            }}
-            .metric-card-alerta .metric-delta {{
-                background: rgba(183, 121, 31, 0.13);
-                color: var(--mh-warning);
-            }}
             .login-logo {{
                 display: flex;
                 justify-content: center;
-                margin-bottom: 0;
+                margin-bottom: 0.75rem;
             }}
             .login-logo img {{
-                width: 132px;
+                width: 150px;
                 max-width: 100%;
                 height: auto;
                 object-fit: contain;
                 display: block;
             }}
             .login-panel {{
+                border: 1px solid var(--mh-border);
+                border-radius: 8px;
+                background: var(--mh-panel);
+                box-shadow: 0 12px 34px rgba(23, 51, 38, 0.10);
+                padding: 1.4rem;
                 text-align: center;
             }}
             .login-panel h2 {{
-                margin: 0.65rem 0 0.5rem;
-                font-size: 1.6rem;
-                line-height: 1.15;
+                margin: 0 0 0.35rem;
+                font-size: 1.55rem;
             }}
             .login-panel p {{
                 color: var(--mh-muted);
@@ -529,20 +404,11 @@ def configurar_pagina() -> None:
                 background: var(--mh-panel);
                 box-shadow: 0 8px 24px rgba(23, 51, 38, 0.06);
                 padding: 1rem;
-                min-height: 11rem;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
-            }}
-            .empresa-card:hover {{
-                border-color: var(--mh-accent);
-                box-shadow: 0 12px 30px rgba(23, 51, 38, 0.10);
-                transform: translateY(-1px);
+                min-height: 9rem;
             }}
             .empresa-card h3 {{
                 margin: 0 0 0.5rem;
-                font-size: 1.1rem;
+                font-size: 1.15rem;
             }}
             .empresa-card p {{
                 margin: 0.2rem 0;
@@ -650,31 +516,11 @@ def configurar_pagina() -> None:
                 .portal-subtitle {{
                     font-size: 0.9rem;
                 }}
-                .login-shell {{
-                    min-height: auto;
-                    padding: 0.75rem 0;
-                }}
-                .login-spacer {{
-                    height: 0.5rem;
-                }}
-                .login-card {{
-                    grid-template-columns: 1fr;
-                }}
-                .login-brand-panel {{
-                    min-height: 0;
-                    padding: 1.25rem 1rem;
-                }}
-                .login-form-panel {{
-                    padding: 0.25rem 0 0.35rem;
-                }}
-                .login-form-panel h3 {{
-                    font-size: 1.25rem;
-                }}
                 .login-logo img {{
                     width: 118px;
                 }}
                 .login-panel {{
-                    padding: 0;
+                    padding: 1rem;
                 }}
                 .login-panel h2 {{
                     font-size: 1.25rem;
@@ -700,12 +546,7 @@ def configurar_pagina() -> None:
                     font-size: 1.15rem;
                 }}
                 .metric-grid {{
-                    gap: 0.75rem;
-                }}
-                .metric-row,
-                .metric-row-top,
-                .metric-row-bottom {{
-                    grid-template-columns: 1fr;
+                    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
                     gap: 0.75rem;
                 }}
                 .metric-card {{
@@ -785,38 +626,27 @@ def mostrar_cabecalho(empresa: str, status_geral: str, status_tipo: str) -> None
 
 
 def renderizar_metricas(cards: list[dict[str, object]]) -> None:
-    html_linhas = []
-    for indice_linha, cards_linha in enumerate([cards[:4], cards[4:]]):
-        if not cards_linha:
-            continue
-        itens = []
-        classe_linha = "metric-row-top" if indice_linha == 0 else "metric-row-bottom"
-        for card in cards_linha:
-            delta = card.get("delta")
-            nivel = str(card.get("nivel", "") or "").strip().lower()
-            classe_card = f" metric-card-{nivel}" if nivel in {"critico", "alerta"} else ""
-            delta_html = f'<div class="metric-delta">↑ {escape(str(delta))}</div>' if delta is not None else ""
-            itens.append(
-                f'<div class="metric-card{classe_card}">'
-                f'<div class="metric-label">{escape(str(card["label"]))}</div>'
-                f'<div class="metric-value">{escape(str(card["value"]))}</div>'
-                f"{delta_html}"
-                "</div>"
-            )
-        html_linhas.append(f'<div class="metric-row {classe_linha}">{"".join(itens)}</div>')
+    itens = []
+    for card in cards:
+        delta = card.get("delta")
+        delta_html = f'<div class="metric-delta">↑ {escape(str(delta))}</div>' if delta is not None else ""
+        itens.append(
+            '<div class="metric-card">'
+            f'<div class="metric-label">{escape(str(card["label"]))}</div>'
+            f'<div class="metric-value">{escape(str(card["value"]))}</div>'
+            f"{delta_html}"
+            "</div>"
+        )
 
-    st.markdown(f'<div class="metric-grid">{"".join(html_linhas)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-grid">{"".join(itens)}</div>', unsafe_allow_html=True)
 
 
 def criar_config_demo() -> dict:
     config = {
         "usuarios": [
-            {"usuario": "DMLIMA", "senha": "123456", "perfil": "administrador", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "VITOR", "senha": "123456", "perfil": "estagiario", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "ALEX", "senha": "123456", "perfil": "dono", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "RAFAEL", "senha": "123456", "perfil": "socio_operador", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "JESSICA", "senha": "123456", "perfil": "socio_operador", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "MH_FINANCEIRO", "senha": "123456", "perfil": "financeiro", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "DMLIMA", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "VICTOR", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "ALEX", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
         ],
         "clientes": [
             {"empresa": "MHLOG"},
@@ -824,7 +654,6 @@ def criar_config_demo() -> dict:
         ]
     }
     CONFIG_PATH.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
-    atualizar_txt_usuarios_perfis(config)
     return config
 
 
@@ -838,15 +667,11 @@ def normalizar_config(config: dict) -> dict:
             {
                 "usuario": item.get("empresa", ""),
                 "senha": item.get("senha", ""),
-                "perfil": "operador",
                 "empresas": empresas,
             }
             for item in clientes
             if item.get("senha")
         ]
-
-    for usuario in usuarios:
-        usuario["perfil"] = str(usuario.get("perfil", "operador") or "operador").strip().lower()
 
     for cliente in clientes:
         cliente.pop("senha", None)
@@ -854,71 +679,12 @@ def normalizar_config(config: dict) -> dict:
     return {"usuarios": usuarios, "clientes": clientes}
 
 
-def gerar_txt_usuarios_perfis(config: dict) -> str:
-    linhas = [
-        "USUARIOS E PERFIS DO PORTAL",
-        "Atualizado automaticamente a partir de config_clientes.json.",
-        "",
-        "Arquivo apenas para consulta.",
-        "",
-    ]
-    for usuario in sorted(config.get("usuarios", []), key=lambda item: item.get("usuario", "")):
-        nome = str(usuario.get("usuario", "")).strip().upper()
-        perfil = perfil_do_usuario(config, nome)
-        senha = str(usuario.get("senha", ""))
-        empresas = ", ".join(usuario.get("empresas", [])) or "Todas"
-        permissoes = permissoes_do_usuario(config, nome)
-        if permissoes["manutencao"]:
-            acesso = "Opera o sistema"
-        elif permissoes["pagar"]:
-            acesso = "Consulta e marca contas como pagas"
-        else:
-            acesso = "Somente consulta"
-        linhas.extend(
-            [
-                f"Usuario: {nome}",
-                f"Senha: {senha}",
-                f"Perfil: {rotulo_perfil(perfil)}",
-                f"Empresas: {empresas}",
-                f"Acesso: {acesso}",
-                "-" * 48,
-            ]
-        )
-    return "\n".join(linhas) + "\n"
-
-
-def atualizar_txt_usuarios_perfis(config: dict) -> None:
-    conteudo = gerar_txt_usuarios_perfis(config)
-    if USUARIOS_PERFIS_PATH.exists() and USUARIOS_PERFIS_PATH.read_text(encoding="utf-8") == conteudo:
-        return
-    USUARIOS_PERFIS_PATH.write_text(conteudo, encoding="utf-8")
-
-
 def carregar_config() -> dict:
     if not CONFIG_PATH.exists():
         return criar_config_demo()
 
     with CONFIG_PATH.open("r", encoding="utf-8") as arquivo:
-        config = normalizar_config(json.load(arquivo))
-    atualizar_txt_usuarios_perfis(config)
-    return config
-
-
-def salvar_config(config: dict) -> None:
-    config_normalizado = normalizar_config(config)
-    CONFIG_PATH.write_text(json.dumps(config_normalizado, indent=2, ensure_ascii=False), encoding="utf-8")
-    atualizar_txt_usuarios_perfis(config_normalizado)
-
-
-def atualizar_senha_usuario(config: dict, usuario: str, nova_senha: str) -> dict:
-    usuario_normalizado = usuario.strip().upper()
-    config_atualizado = normalizar_config(config.copy())
-    for item in config_atualizado["usuarios"]:
-        if item.get("usuario", "").strip().upper() == usuario_normalizado:
-            item["senha"] = nova_senha
-            salvar_config(config_atualizado)
-            return config_atualizado
-    raise ValueError("Usuario nao encontrado para troca de senha.")
+        return normalizar_config(json.load(arquivo))
 
 
 def dados_demo() -> pd.DataFrame:
@@ -939,8 +705,25 @@ def normalizar_ativo(valor: object) -> bool:
     return texto not in {"false", "0", "nao", "não", "n", "excluido", "excluído"}
 
 
+def remover_linhas_em_branco(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df.copy()
+
+    colunas_verificacao = [coluna for coluna in COLUNAS_DADOS if coluna != "ativo" and coluna in df.columns]
+    if not colunas_verificacao:
+        return df.copy()
+
+    vazia = pd.Series(True, index=df.index)
+    for coluna in colunas_verificacao:
+        serie = df[coluna]
+        vazia &= serie.isna() | serie.astype(str).str.strip().eq("")
+
+    return df.loc[~vazia].copy()
+
+
 def normalizar_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df = df.loc[:, ~df.columns.duplicated()].copy()
+    df = remover_linhas_em_branco(df)
     for coluna in COLUNAS_DADOS:
         if coluna not in df.columns:
             df[coluna] = True if coluna == "ativo" else ""
@@ -968,6 +751,201 @@ def caminho_dados_empresa(empresa: str) -> Path:
     return pasta_empresa(empresa) / "dados_portal.csv"
 
 
+def pasta_backups_empresa(empresa: str) -> Path:
+    return BACKUPS_DIR / slug_empresa(empresa)
+
+
+def listar_backups_empresa(empresa: str) -> list[Path]:
+    pasta = pasta_backups_empresa(empresa)
+    if not pasta.exists():
+        return []
+    backups = [caminho for caminho in pasta.glob("dados_portal_*.csv") if caminho.is_file()]
+    return sorted(backups, key=lambda caminho: caminho.stat().st_mtime, reverse=True)
+
+
+def criar_backup_empresa(empresa: str, origem: Path | None = None) -> Path | None:
+    origem = origem or caminho_dados_empresa(empresa)
+    if not origem.exists():
+        return None
+
+    pasta = pasta_backups_empresa(empresa)
+    pasta.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    destino = pasta / f"dados_portal_{timestamp}.csv"
+    contador = 1
+    while destino.exists():
+        destino = pasta / f"dados_portal_{timestamp}_{contador}.csv"
+        contador += 1
+    shutil.copy2(origem, destino)
+    return destino
+
+
+def obter_resumo_base_empresa(empresa: str, df_base: pd.DataFrame | None = None) -> dict:
+    caminho = caminho_dados_empresa(empresa)
+    backups = listar_backups_empresa(empresa)
+    resumo = {
+        "empresa": empresa,
+        "caminho": caminho,
+        "existe": caminho.exists(),
+        "status": "ok",
+        "erro": "",
+        "qtd_registros": 0,
+        "qtd_contas_ativas": 0,
+        "valor_contas_ativas": 0.0,
+        "qtd_backups": len(backups),
+        "ultimo_backup": backups[0] if backups else None,
+        "backups": backups,
+    }
+
+    if df_base is None:
+        if not caminho.exists():
+            resumo["status"] = "ausente"
+            return resumo
+        try:
+            df_base = pd.read_csv(caminho)
+        except Exception as erro:
+            resumo["status"] = "erro"
+            resumo["erro"] = str(erro)
+            return resumo
+
+    if not caminho.exists():
+        resumo["status"] = "ausente"
+
+    dados = normalizar_dataframe(df_base)
+    resumo["qtd_registros"] = int(len(dados))
+    contas_ativas = dados.loc[(dados["tipo"].astype(str) == "conta_a_pagar") & dados["ativo"]].copy()
+    resumo["qtd_contas_ativas"] = int(len(contas_ativas))
+    resumo["valor_contas_ativas"] = float(pd.to_numeric(contas_ativas["valor"], errors="coerce").fillna(0).sum()) if not contas_ativas.empty else 0.0
+    if caminho.exists() and not resumo["qtd_registros"]:
+        resumo["status"] = "vazia"
+    return resumo
+
+
+def base_operacional_suspeita(resumo_atual: dict, df_novo: pd.DataFrame) -> tuple[bool, str]:
+    dados_novos = normalizar_dataframe(df_novo)
+    novas_ativas = dados_novos.loc[(dados_novos["tipo"].astype(str) == "conta_a_pagar") & dados_novos["ativo"]].copy()
+    qtd_novas = int(len(novas_ativas))
+    valor_novo = float(pd.to_numeric(novas_ativas["valor"], errors="coerce").fillna(0).sum()) if qtd_novas else 0.0
+
+    qtd_atual = int(resumo_atual.get("qtd_contas_ativas", 0) or 0)
+    valor_atual = float(resumo_atual.get("valor_contas_ativas", 0) or 0)
+
+    if qtd_atual <= 0 and valor_atual <= 0:
+        return False, ""
+    if qtd_novas == 0:
+        return True, "a nova gravação ficou sem contas ativas"
+    if valor_atual >= VALOR_RELEVANTE_SOBRESCRITA and valor_novo <= 0:
+        return True, "o valor total ativo caiu para zero"
+    if qtd_atual >= 5 and qtd_novas / max(qtd_atual, 1) < LIMIAR_QUEDA_SOBRESCRITA:
+        return True, "a quantidade de registros ativos caiu bruscamente"
+    if valor_atual >= VALOR_RELEVANTE_SOBRESCRITA and valor_novo / max(valor_atual, 1) < LIMIAR_QUEDA_SOBRESCRITA:
+        return True, "o valor total ativo caiu bruscamente"
+    return False, ""
+
+
+def restaurar_backup_empresa(empresa: str, backup: Path | None = None) -> Path:
+    backup = backup or obter_resumo_base_empresa(empresa).get("ultimo_backup")
+    if not backup:
+        raise ValueError("Nenhum backup encontrado para restauracao.")
+
+    backup = Path(backup)
+    if not backup.exists():
+        raise ValueError("O backup selecionado nao existe mais.")
+
+    caminho = caminho_dados_empresa(empresa)
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    if caminho.exists():
+        criar_backup_empresa(empresa, caminho)
+    shutil.copy2(backup, caminho)
+    return caminho
+
+
+def exibir_alerta_base_operacional(resumo: dict) -> None:
+    empresa = str(resumo.get("empresa", ""))
+    caminho = resumo.get("caminho")
+    quantidade_backups = int(resumo.get("qtd_backups", 0) or 0)
+    ultimo_backup = resumo.get("ultimo_backup")
+    status = str(resumo.get("status", "ok"))
+
+    if status == "ok" and int(resumo.get("qtd_registros", 0) or 0) > 0:
+        return
+
+    if status == "ausente":
+        st.error(
+            "Base operacional nao encontrada. A empresa pode ter dados reais em backup, mas o CSV atual nao esta disponivel. Restaure o backup mais recente ou reimporte a base."
+        )
+    elif status == "vazia":
+        st.warning(
+            "A base operacional desta empresa esta vazia. Se isso nao era esperado, restaure um backup ou reimporte a base antes de prosseguir."
+        )
+    elif status == "erro":
+        st.error(f"Falha ao ler a base operacional desta empresa: {resumo.get('erro', '')}")
+    else:
+        return
+
+    st.markdown(
+        f"""
+        **Empresa:** {escape(empresa)}  
+        **CSV esperado:** `{caminho}`  
+        **Backups encontrados:** {quantidade_backups}
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if ultimo_backup:
+        st.caption(f"Backup mais recente: {ultimo_backup}")
+
+    if quantidade_backups:
+        if st.button(
+            "Restaurar backup mais recente",
+            key=f"restaurar_backup_{slug_empresa(empresa)}",
+            use_container_width=True,
+        ):
+            caminho_restaurado = restaurar_backup_empresa(empresa, ultimo_backup)
+            st.success(f"Backup restaurado em {caminho_restaurado}.")
+            st.rerun()
+    else:
+        st.info("Nenhum backup localizado para esta empresa. Verifique a pasta data/backups/<EMPRESA>/ antes de gravar uma nova base.")
+
+
+def renderizar_salvamento_pendente() -> None:
+    pendente = st.session_state.get("salvamento_pendente")
+    if not pendente:
+        return
+
+    empresa = str(pendente.get("empresa", ""))
+    motivo = str(pendente.get("motivo", "alteracao suspeita"))
+    qtd_atual = int(pendente.get("qtd_atual", 0) or 0)
+    valor_atual = float(pendente.get("valor_atual", 0) or 0)
+    qtd_nova = int(pendente.get("qtd_nova", 0) or 0)
+    valor_novo = float(pendente.get("valor_novo", 0) or 0)
+
+    st.warning(
+        f"Gravacao bloqueada para proteger a base de {empresa}: {motivo}. "
+        "Confirme explicitamente se essa alteracao for esperada."
+    )
+    st.write(
+        f"Base atual: {qtd_atual} registro(s) ativo(s), {formatar_moeda_br(valor_atual)} | "
+        f"Nova base: {qtd_nova} registro(s) ativo(s), {formatar_moeda_br(valor_novo)}"
+    )
+
+    c1, c2 = st.columns(2)
+    if c1.button("Confirmar gravacao", key=f"confirmar_salvamento_{slug_empresa(empresa)}", use_container_width=True):
+        df_pendente = pendente.get("df")
+        try:
+            salvar_dados_empresa(df_pendente, empresa, confirmar_sobrescrita_perigosa=True)
+        except Exception as erro:
+            st.error(str(erro))
+            return
+        st.session_state.pop("salvamento_pendente", None)
+        st.success("Gravacao confirmada e salva com backup automatico.")
+        st.rerun()
+    if c2.button("Cancelar gravacao", key=f"cancelar_salvamento_{slug_empresa(empresa)}", use_container_width=True):
+        st.session_state.pop("salvamento_pendente", None)
+        st.info("Gravacao pendente cancelada. Nenhum arquivo foi sobrescrito.")
+        st.rerun()
+
+
 def carregar_base_demo() -> pd.DataFrame:
     if CSV_PATH.exists():
         return pd.read_csv(CSV_PATH)
@@ -982,13 +960,9 @@ def carregar_dados_empresa(empresa: str) -> pd.DataFrame:
     if caminho.exists():
         df = pd.read_csv(caminho)
     else:
-        demo = carregar_base_demo()
-        df = demo.loc[demo["empresa"].astype(str) == empresa].copy()
-        salvar_dados_empresa(normalizar_dataframe(df), empresa)
+        df = pd.DataFrame(columns=COLUNAS_DADOS)
     df_normalizado = normalizar_dataframe(df)
     df_limpo = remover_lancamentos_demo_legados(df_normalizado)
-    if len(df_limpo) != len(df_normalizado):
-        salvar_dados_empresa(df_limpo, empresa)
     return df_limpo
 
 
@@ -1008,14 +982,44 @@ def carregar_dados_empresas(config: dict) -> pd.DataFrame:
     return normalizar_dataframe(pd.concat(frames, ignore_index=True))
 
 
-def salvar_dados_empresa(df: pd.DataFrame, empresa: str) -> Path:
-    """Salva no arquivo operacional da empresa selecionada."""
+def salvar_dados_empresa(
+    df: pd.DataFrame,
+    empresa: str,
+    confirmar_sobrescrita_perigosa: bool = False,
+) -> Path | None:
+    """Salva no arquivo operacional da empresa selecionada com backup e protecao."""
     caminho = caminho_dados_empresa(empresa)
     caminho.parent.mkdir(parents=True, exist_ok=True)
     dados = normalizar_dataframe(df)
-    dados = dados.loc[dados["empresa"].astype(str).eq(empresa)].copy()
     dados = dados[[coluna for coluna in COLUNAS_DADOS if coluna in dados.columns]].copy()
+    resumo_atual = obter_resumo_base_empresa(empresa)
+    suspeita, motivo = base_operacional_suspeita(resumo_atual, dados)
+    if suspeita and not confirmar_sobrescrita_perigosa:
+        st.session_state["salvamento_pendente"] = {
+            "empresa": empresa,
+            "df": dados.copy(),
+            "motivo": motivo,
+            "qtd_atual": resumo_atual.get("qtd_contas_ativas", 0),
+            "valor_atual": resumo_atual.get("valor_contas_ativas", 0.0),
+            "qtd_nova": int(len(dados.loc[(dados["tipo"].astype(str) == "conta_a_pagar") & dados["ativo"]])),
+            "valor_novo": float(
+                pd.to_numeric(
+                    dados.loc[(dados["tipo"].astype(str) == "conta_a_pagar") & dados["ativo"], "valor"],
+                    errors="coerce",
+                ).fillna(0).sum()
+            ),
+        }
+        st.warning(
+            f"Gravacao bloqueada para proteger a base de {empresa}. "
+            "Confirme explicitamente no bloco de salvamento pendente para prosseguir."
+        )
+        return None
+
+    if caminho.exists():
+        criar_backup_empresa(empresa, caminho)
     dados.to_csv(caminho, index=False, encoding="utf-8-sig")
+    if st.session_state.get("salvamento_pendente", {}).get("empresa") == empresa:
+        st.session_state.pop("salvamento_pendente", None)
     return caminho
 
 
@@ -1030,158 +1034,151 @@ def formatar_data_br(valor: object) -> str:
     return data.strftime("%d/%m/%Y")
 
 
-def campo_data_ptbr(container: object, label: str, key_prefix: str, valor: object = None, permitir_vazio: bool = False) -> date | None:
-    data = pd.to_datetime(valor, errors="coerce") if valor is not None else pd.NaT
-    ano_atual = datetime.now().year
-    anos = list(range(ano_atual - 5, ano_atual + 11))
-    if not pd.isna(data) and int(data.year) not in anos:
-        anos.insert(0, int(data.year))
-
-    dias_opcoes = [""] + list(range(1, 32)) if permitir_vazio else list(range(1, 32))
-    meses_opcoes = [""] + [nome for _, nome in MESES_PT_BR] if permitir_vazio else [nome for _, nome in MESES_PT_BR]
-    anos_opcoes = [""] + anos if permitir_vazio else anos
-
-    dia_index = 0
-    mes_index = 0
-    ano_index = 0
-    if not pd.isna(data):
-        dia_valor = int(data.day)
-        mes_valor = MESES_PT_BR[int(data.month) - 1][1]
-        ano_valor = int(data.year)
-        dia_index = dias_opcoes.index(dia_valor)
-        mes_index = meses_opcoes.index(mes_valor)
-        ano_index = anos_opcoes.index(ano_valor)
-
-    container.markdown(f"**{label}**")
-    col_dia, col_mes, col_ano = container.columns([0.75, 1.35, 0.9])
-    dia = col_dia.selectbox("Dia", dias_opcoes, index=dia_index, key=f"{key_prefix}_dia")
-    mes_nome = col_mes.selectbox("Mês", meses_opcoes, index=mes_index, key=f"{key_prefix}_mes")
-    ano = col_ano.selectbox("Ano", anos_opcoes, index=ano_index, key=f"{key_prefix}_ano")
-
-    if not dia or not mes_nome or not ano:
-        return None
-
-    mes = next(numero for numero, nome in MESES_PT_BR if nome == mes_nome)
-    try:
-        return date(int(ano), int(mes), int(dia))
-    except ValueError:
-        return None
-
-
 def agora_br() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def sucesso_temporario(mensagem: str, segundos: float = 1.5) -> None:
-    aviso = st.empty()
-    aviso.success(mensagem)
-    time.sleep(segundos)
-    aviso.empty()
+def renderizar_botao_menu_lateral() -> None:
+    components.html(
+        """
+        <button class="menu-lateral-fab" type="button" aria-label="Abrir menu lateral" title="Abrir menu lateral">
+            ☰ Menu
+        </button>
+        <script>
+            const btn = document.currentScript.previousElementSibling;
+            btn.addEventListener("click", () => {
+                const doc = window.parent?.document;
+                if (!doc) return;
+                const seletores = [
+                    'button[data-testid="collapsedControl"]',
+                    'button[aria-label*="sidebar" i]',
+                    'button[title*="sidebar" i]'
+                ];
+                for (const seletor of seletores) {
+                    const alvo = doc.querySelector(seletor);
+                    if (alvo) {
+                        alvo.click();
+                        return;
+                    }
+                }
+            });
+        </script>
+        <style>
+            html, body {
+                margin: 0;
+                padding: 0;
+                background: transparent;
+                overflow: hidden;
+            }
+            .menu-lateral-fab {
+                position: fixed;
+                top: 0.85rem;
+                left: 0.85rem;
+                z-index: 9999;
+                border: 1px solid #c8ddce;
+                border-radius: 999px;
+                padding: 0.55rem 0.85rem;
+                background: rgba(255, 255, 255, 0.96);
+                color: #173326;
+                font-weight: 700;
+                box-shadow: 0 8px 24px rgba(23, 51, 38, 0.12);
+                cursor: pointer;
+            }
+            .menu-lateral-fab:hover {
+                border-color: #2f8f5b;
+                background: #ffffff;
+            }
+        </style>
+        """,
+        height=60,
+    )
+
+
+def aplicar_emojis_botoes_filtro() -> None:
+    components.html(
+        """
+        <script>
+            const emojis = new Map([
+                ["Ativas", "🟢"],
+                ["Excluídas", "🚫"],
+                ["Excluidas", "🚫"],
+                ["Importar", "📥"],
+                ["Exportar", "📤"],
+            ]);
+
+            function ajustar() {
+                const doc = window.parent?.document;
+                if (!doc) return;
+
+                doc.querySelectorAll("button").forEach((btn) => {
+                    const texto = (btn.textContent || "").trim();
+                    const emoji = emojis.get(texto);
+                    if (!emoji || btn.dataset.emojiApplied === "1") return;
+                    btn.dataset.emojiApplied = "1";
+                    btn.textContent = `${emoji} ${texto}`;
+                });
+            }
+
+            ajustar();
+            const observer = new MutationObserver(ajustar);
+            observer.observe(window.parent?.document?.body || document.body, { childList: true, subtree: true });
+        </script>
+        """,
+        height=0,
+    )
+
+
+def voltar_menu_inicial() -> None:
+    st.session_state.empresa_logada = ""
+    st.session_state.modulo_atual = "contas_a_pagar"
+    st.session_state.manutencao_ativa = ""
+    st.session_state.exibir_troca_senha_padrao = False
+    st.session_state.exibir_troca_senha_manual = False
+    st.session_state.conta_edicao_indice = None
+    st.session_state.conta_duplicacao_indice = None
+    sincronizar_estado_url()
     st.rerun()
 
 
-def renderizar_relogio_clima() -> None:
-    components.html(
-        """
-        <div class="info-bar">
-            <div>
-                <span class="info-label">Agora</span>
-                <strong id="clock">Carregando...</strong>
-            </div>
-            <div>
-                <span class="info-label">Clima local</span>
-                <strong id="weather">Permita a localização</strong>
-            </div>
-        </div>
-        <style>
-            body { margin: 0; background: transparent; font-family: "Source Sans Pro", Arial, sans-serif; }
-            .info-bar {
-                display: flex;
-                justify-content: flex-end;
-                align-items: center;
-                gap: 0.75rem;
-                width: 100%;
-                box-sizing: border-box;
-            }
-            .info-bar > div {
-                min-width: 13rem;
-                border: 1px solid #c8ddce;
-                border-radius: 8px;
-                background: rgba(255, 255, 255, 0.86);
-                color: #173326;
-                padding: 0.55rem 0.75rem;
-                box-shadow: 0 6px 18px rgba(23, 51, 38, 0.06);
-            }
-            .info-label {
-                display: block;
-                color: #60776a;
-                font-size: 0.72rem;
-                font-weight: 700;
-                text-transform: uppercase;
-                line-height: 1.1;
-            }
-            strong {
-                display: block;
-                margin-top: 0.15rem;
-                color: #2f8f5b;
-                font-size: 0.98rem;
-                line-height: 1.2;
-                white-space: nowrap;
-            }
-            @media (max-width: 700px) {
-                .info-bar { justify-content: stretch; flex-direction: column; align-items: stretch; }
-                .info-bar > div { min-width: 0; }
-            }
-        </style>
-        <script>
-            const clock = document.getElementById("clock");
-            const weather = document.getElementById("weather");
+def renderizar_menu_direito(config: dict) -> None:
+    _, col_inicio, col_menu = st.columns([7.8, 1.05, 1.15], gap="small")
+    with col_inicio:
+        st.button(
+            "Inicio",
+            key="btn_voltar_menu_inicial",
+            help="Voltar para a tela inicial",
+            use_container_width=True,
+            type="secondary",
+            on_click=voltar_menu_inicial,
+        )
 
-            function updateClock() {
-                const now = new Date();
-                clock.textContent = new Intl.DateTimeFormat("pt-BR", {
-                    weekday: "short",
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit"
-                }).format(now);
-            }
-            updateClock();
-            setInterval(updateClock, 1000);
-
-            async function loadWeather(position) {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-                try {
-                    const [forecastResponse, geoResponse] = await Promise.all([
-                        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m&timezone=auto`),
-                        fetch(`https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&language=pt&count=1`)
-                    ]);
-                    const forecast = await forecastResponse.json();
-                    const geo = await geoResponse.json();
-                    const temp = forecast.current?.temperature_2m;
-                    const unit = forecast.current_units?.temperature_2m || "°C";
-                    const place = geo.results?.[0]?.name || "Sua cidade";
-                    weather.textContent = temp === undefined ? `${place}: indisponível` : `${place}: ${Math.round(temp)}${unit}`;
-                } catch (error) {
-                    weather.textContent = "Clima indisponível";
-                }
-            }
-
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(loadWeather, () => {
-                    weather.textContent = "Localização não permitida";
-                }, { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 });
-            } else {
-                weather.textContent = "Localização indisponível";
-            }
-        </script>
-        """,
-        height=78,
-    )
+    with col_menu:
+        if hasattr(st, "popover"):
+            with st.popover("Menu", use_container_width=True):
+                st.caption("Menu lateral")
+                if st.session_state.get("empresa_logada"):
+                    for modulo in MODULOS_CONTABEIS:
+                        ativo = bool(modulo["ativo"])
+                        selecionado = modulo["id"] == st.session_state.get("modulo_atual", "contas_a_pagar")
+                        label = modulo["titulo"] if ativo else f"{modulo['titulo']} - em breve"
+                        st.button(
+                            label,
+                            key=f"menu_direito_{modulo['id']}",
+                            use_container_width=True,
+                            disabled=not ativo,
+                            type="primary" if selecionado and ativo else "secondary",
+                            on_click=selecionar_modulo if ativo else None,
+                            args=(modulo["id"],) if ativo else None,
+                        )
+                else:
+                    st.caption("Selecione uma empresa para liberar os módulos.")
+                st.divider()
+                trocar_senha = globals().get("abrir_troca_senha")
+                if trocar_senha:
+                    st.button("Trocar senha", key="menu_direito_senha", use_container_width=True, on_click=trocar_senha)
+                st.button("Sair", key="menu_direito_sair", use_container_width=True, on_click=logout)
+        else:
+            st.button("Menu", key="btn_menu_direito_fallback", use_container_width=True, type="secondary")
 
 
 def gerar_csv_download(df: pd.DataFrame) -> bytes:
@@ -1190,7 +1187,7 @@ def gerar_csv_download(df: pd.DataFrame) -> bytes:
 
 
 def gerar_excel_contas_download(df: pd.DataFrame, empresa: str) -> bytes:
-    dados = df.sort_values(["vencimento_dt", "descricao"], ascending=[False, True], na_position="last").copy()
+    dados = df.sort_values(["vencimento_dt", "descricao"], na_position="last").copy()
     hoje = pd.Timestamp(datetime.now().date())
 
     colunas = [
@@ -1409,13 +1406,11 @@ def campo_opcao_nova(
     label_novo: str,
     key_prefix: str,
     index: int | None = None,
-    permitir_vazio: bool = False,
 ) -> tuple[str, str]:
-    opcoes_select = ["", *opcoes] if permitir_vazio and "" not in opcoes else opcoes
-    indice = 0 if permitir_vazio and index is None else indice_padrao_sem_novo(opcoes_select) if index is None else index
+    indice = indice_padrao_sem_novo(opcoes) if index is None else index
     selecao = container.selectbox(
         label,
-        opcoes_select,
+        opcoes,
         index=indice,
         key=f"{key_prefix}_selecao",
         format_func=rotulo_opcao_nova,
@@ -1576,48 +1571,6 @@ def obter_senha_usuario(config: dict, usuario: str) -> str:
     return str(usuario_config.get("senha", ""))
 
 
-def perfil_do_usuario(config: dict, usuario: str) -> str:
-    return str(obter_usuario(config, usuario).get("perfil", "operador") or "operador").strip().lower()
-
-
-def rotulo_perfil(perfil: str) -> str:
-    return {
-        "administrador": "Administrador",
-        "estagiario": "Estagiario",
-        "dono": "Dono",
-        "socio": "Socio",
-        "sócio": "Socio",
-        "socio_operador": "Socio operador",
-        "financeiro": "Financeiro",
-        "consulta": "Consulta",
-    }.get(str(perfil or "").strip().lower(), str(perfil or "Operador").replace("_", " ").title())
-
-
-def usuario_pode_alterar(config: dict, usuario: str) -> bool:
-    return perfil_do_usuario(config, usuario) not in {
-        "consulta",
-        "consultor",
-        "visualizacao",
-        "visualização",
-        "somente_consulta",
-        "dono",
-        "financeiro",
-    }
-
-
-def permissoes_do_usuario(config: dict, usuario: str) -> dict[str, bool]:
-    perfil = perfil_do_usuario(config, usuario)
-    pode_operar = usuario_pode_alterar(config, usuario)
-    pode_pagar = pode_operar or perfil == "financeiro"
-    return {
-        "editar": pode_operar,
-        "duplicar": pode_operar,
-        "pagar": pode_pagar,
-        "excluir": pode_operar,
-        "manutencao": pode_operar,
-    }
-
-
 def empresas_do_usuario(config: dict, usuario: str) -> list[str]:
     usuario_config = obter_usuario(config, usuario)
     empresas_liberadas = usuario_config.get("empresas", [])
@@ -1629,12 +1582,158 @@ def empresas_do_usuario(config: dict, usuario: str) -> list[str]:
 
 def inicializar_sessao() -> None:
     st.session_state.setdefault("autenticado", False)
+    st.session_state.setdefault("auth_token", "")
     st.session_state.setdefault("usuario_logado", "")
     st.session_state.setdefault("empresa_logada", "")
     st.session_state.setdefault("modulo_atual", "contas_a_pagar")
     st.session_state.setdefault("exibir_troca_senha_padrao", False)
     st.session_state.setdefault("senha_padrao_mantida", False)
     st.session_state.setdefault("exibir_troca_senha_manual", False)
+
+
+def ler_estado_url() -> dict[str, str]:
+    try:
+        params = st.query_params
+        return {chave: str(valor) for chave, valor in params.items()}
+    except Exception:
+        params = st.experimental_get_query_params()
+        return {chave: str(valor[0]) for chave, valor in params.items() if valor}
+
+
+def definir_estado_url(**estado: object) -> None:
+    dados = {chave: str(valor) for chave, valor in estado.items() if valor is not None and str(valor) != ""}
+    try:
+        if hasattr(st, "query_params"):
+            st.query_params.clear()
+            for chave, valor in dados.items():
+                st.query_params[chave] = valor
+        else:
+            st.experimental_set_query_params(**dados)
+    except Exception:
+        pass
+
+
+def limpar_estado_url() -> None:
+    try:
+        if hasattr(st, "query_params"):
+            st.query_params.clear()
+        else:
+            st.experimental_set_query_params()
+    except Exception:
+        pass
+
+
+def carregar_sessoes_autenticacao() -> dict[str, dict[str, object]]:
+    if not SESSOES_PATH.exists():
+        return {}
+    try:
+        dados = json.loads(SESSOES_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return dados if isinstance(dados, dict) else {}
+
+
+def salvar_sessoes_autenticacao(sessoes: dict[str, dict[str, object]]) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    SESSOES_PATH.write_text(json.dumps(sessoes, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def criar_sessao_autenticacao(usuario: str) -> str:
+    agora = time.time()
+    sessoes = {
+        token: dados
+        for token, dados in carregar_sessoes_autenticacao().items()
+        if float(dados.get("expira_em", 0) or 0) > agora
+    }
+    token = secrets.token_urlsafe(32)
+    sessoes[token] = {
+        "usuario": usuario.strip().upper(),
+        "expira_em": agora + SESSAO_LOGIN_SEGUNDOS,
+    }
+    salvar_sessoes_autenticacao(sessoes)
+    return token
+
+
+def obter_sessao_autenticacao(token: str) -> dict[str, object] | None:
+    if not token:
+        return None
+    sessoes = carregar_sessoes_autenticacao()
+    sessao = sessoes.get(token)
+    if not sessao:
+        return None
+    if float(sessao.get("expira_em", 0) or 0) <= time.time():
+        sessoes.pop(token, None)
+        salvar_sessoes_autenticacao(sessoes)
+        return None
+    return sessao
+
+
+def invalidar_sessao_autenticacao(token: str) -> None:
+    if not token:
+        return
+    sessoes = carregar_sessoes_autenticacao()
+    if token in sessoes:
+        sessoes.pop(token, None)
+        salvar_sessoes_autenticacao(sessoes)
+
+
+def expirar_sessao_se_necessario() -> None:
+    if not st.session_state.get("autenticado"):
+        return
+    token = str(st.session_state.get("auth_token", ""))
+    if obter_sessao_autenticacao(token):
+        return
+    st.session_state.autenticado = False
+    st.session_state.auth_token = ""
+    st.session_state.usuario_logado = ""
+    st.session_state.empresa_logada = ""
+    st.session_state.exibir_troca_senha_padrao = False
+    st.session_state.exibir_troca_senha_manual = False
+    limpar_estado_url()
+
+
+def restaurar_estado_sessao() -> None:
+    estado = ler_estado_url()
+    sessao = obter_sessao_autenticacao(estado.get("token", ""))
+    if not sessao:
+        if estado.get("auth") == "1" or estado.get("token"):
+            limpar_estado_url()
+        return
+
+    st.session_state.autenticado = True
+    st.session_state.auth_token = estado.get("token", "")
+    st.session_state.usuario_logado = str(sessao.get("usuario", ""))
+    st.session_state.empresa_logada = estado.get("empresa", st.session_state.get("empresa_logada", ""))
+    st.session_state.modulo_atual = estado.get("modulo", st.session_state.get("modulo_atual", "contas_a_pagar"))
+    st.session_state.exibir_troca_senha_padrao = estado.get("troca_padrao") == "1"
+    st.session_state.exibir_troca_senha_manual = estado.get("troca_manual") == "1"
+    st.session_state.senha_padrao_mantida = estado.get("senha_padrao_mantida") == "1"
+
+
+def sincronizar_estado_url() -> None:
+    if not st.session_state.get("autenticado"):
+        limpar_estado_url()
+        return
+    token = str(st.session_state.get("auth_token", ""))
+    if token and not obter_sessao_autenticacao(token):
+        st.session_state.autenticado = False
+        st.session_state.auth_token = ""
+        limpar_estado_url()
+        st.rerun()
+    if not token:
+        token = criar_sessao_autenticacao(str(st.session_state.get("usuario_logado", "")))
+        st.session_state.auth_token = token
+
+    definir_estado_url(
+        auth="1",
+        token=token,
+        usuario=st.session_state.get("usuario_logado", ""),
+        empresa=st.session_state.get("empresa_logada", ""),
+        modulo=st.session_state.get("modulo_atual", "contas_a_pagar"),
+        troca_padrao="1" if st.session_state.get("exibir_troca_senha_padrao") else "",
+        troca_manual="1" if st.session_state.get("exibir_troca_senha_manual") else "",
+        senha_padrao_mantida="1" if st.session_state.get("senha_padrao_mantida") else "",
+    )
 
 
 def tela_login(config: dict) -> None:
@@ -1704,14 +1803,14 @@ def sidebar_filtros_antigo(config: dict) -> tuple[str, str]:
 
 def filtrar_dados(df: pd.DataFrame, empresa: str) -> pd.DataFrame:
     filtro = df["empresa"] == empresa
-    return df.loc[filtro].copy()
+    return remover_linhas_em_branco(df.loc[filtro].copy())
 
 
 def filtrar_contas_a_pagar_abertas(df: pd.DataFrame, empresa: str) -> pd.DataFrame:
     dados = filtrar_dados(df, empresa)
     status_abertos = dados["status"].astype(str).str.lower().isin(["aberto", "pendente", "vencido"])
     filtro = (dados["tipo"] == "conta_a_pagar") & status_abertos & dados["ativo"]
-    return dados.loc[filtro].copy()
+    return remover_linhas_em_branco(dados.loc[filtro].copy())
 
 
 def tela_login(config: dict) -> None:
@@ -1722,194 +1821,75 @@ def tela_login(config: dict) -> None:
         else '<strong style="color:var(--mh-accent);font-size:1.5rem;">MH LOG</strong>'
     )
 
-    st.markdown('<div class="login-spacer"></div>', unsafe_allow_html=True)
-    _, col_login, _ = st.columns([0.45, 2.1, 0.45])
+    st.write("")
+    _, col_login, _ = st.columns([1, 1.05, 1])
     with col_login:
+        st.markdown(
+            f"""
+            <div class="login-logo">{logo_html}</div>
+            <section class="login-panel">
+                <span class="login-badge">Acesso restrito</span>
+                <h2>Portal Contabil do Cliente</h2>
+                <p>Contas a pagar liberadas pelo escritorio.</p>
+                <p>Use seu usuario e senha de acesso.</p>
+            </section>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.write("")
         with st.container(border=True):
-            col_brand, col_form = st.columns([0.9, 1.1], gap="large")
-            with col_brand:
-                st.markdown(
-                    f"""
-                    <section class="login-brand-panel">
-                        <div class="login-logo">{logo_html}</div>
-                        <div class="login-panel">
-                            <span class="login-badge">Acesso restrito</span>
-                            <h2>Portal Contabil do Cliente</h2>
-                            <p>Contas a pagar liberadas pelo escritorio.</p>
-                            <p>Acompanhe vencimentos, pendencias e relatorios por empresa.</p>
-                        </div>
-                    </section>
-                    """,
-                    unsafe_allow_html=True,
-                )
-            with col_form:
-                st.markdown(
-                    """
-                    <div class="login-form-panel">
-                        <h3>Entrar no portal</h3>
-                        <p>Informe seus dados para continuar.</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                with st.form("form_login", clear_on_submit=False):
-                    usuario = st.text_input("Usuario", value=st.session_state.get("usuario_login", ""))
-                    senha = st.text_input("Senha de acesso", type="password")
-                    entrar = st.form_submit_button("Entrar", use_container_width=True)
+            st.subheader("Entrar no portal")
+            st.caption("Informe seus dados para continuar.")
+            with st.form("form_login", clear_on_submit=False):
+                usuario = st.text_input("Usuario", value=st.session_state.get("usuario_login", ""))
+                senha = st.text_input("Senha de acesso", type="password")
+                entrar = st.form_submit_button("Entrar", use_container_width=True)
 
-    if entrar:
-        usuario = usuario.strip().upper()
-        empresas_liberadas = empresas_do_usuario(config, usuario)
-        if validar_login(config, usuario, senha) and empresas_liberadas:
-            st.session_state.autenticado = True
-            st.session_state.usuario_logado = usuario
-            st.session_state.usuario_login = usuario
-            st.session_state.empresa_logada = ""
-            st.session_state.exibir_troca_senha_padrao = senha == "123456"
-            st.session_state.senha_padrao_mantida = False
-            st.rerun()
-        else:
-            st.error("Usuario ou senha invalida.")
-
-
-def tela_troca_senha_padrao(config: dict) -> None:
-    usuario = st.session_state.get("usuario_logado", "")
-    st.markdown('<div class="login-spacer"></div>', unsafe_allow_html=True)
-    _, col_senha, _ = st.columns([0.8, 1.35, 0.8])
-    with col_senha:
-        with st.container(border=True):
-            st.markdown(
-                """
-                <div class="password-panel-header">
-                    <div class="password-alert">Sua senha atual ainda é a senha padrão 123456.</div>
-                    <h2>Deseja trocar sua senha?</h2>
-                    <p>Por segurança, recomendamos criar uma senha própria agora.</p>
-                    <p>Você também pode permanecer com a senha atual. A senha fica registrada no controle do portal para o administrador DMLIMA.</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            with st.form("form_troca_senha_padrao"):
-                nova_senha = st.text_input("Nova senha", type="password")
-                confirmar_senha = st.text_input("Confirmar nova senha", type="password")
-                col1, col2 = st.columns(2)
-                trocar = col1.form_submit_button("Trocar senha", use_container_width=True)
-                manter = col2.form_submit_button("Permanecer com 123456", use_container_width=True)
-
-    if manter:
-        st.session_state.exibir_troca_senha_padrao = False
-        st.session_state.senha_padrao_mantida = True
-        st.rerun()
-
-    if not trocar:
-        st.stop()
-
-    if not nova_senha or not confirmar_senha:
-        st.error("Informe e confirme a nova senha.")
-        st.stop()
-    if nova_senha != confirmar_senha:
-        st.error("As senhas informadas nao conferem.")
-        st.stop()
-    if len(nova_senha) < 6:
-        st.error("A nova senha precisa ter pelo menos 6 caracteres.")
-        st.stop()
-    if nova_senha == "123456":
-        st.error("Escolha uma senha diferente de 123456.")
-        st.stop()
-
-    try:
-        atualizar_senha_usuario(config, usuario, nova_senha)
-    except ValueError as erro:
-        st.error(str(erro))
-        st.stop()
-
-    st.session_state.exibir_troca_senha_padrao = False
-    st.session_state.senha_padrao_mantida = False
-    sucesso_temporario("Senha alterada com sucesso.")
-
-
-def tela_troca_senha_manual(config: dict) -> None:
-    usuario = st.session_state.get("usuario_logado", "")
-    st.markdown('<div class="login-spacer"></div>', unsafe_allow_html=True)
-    _, col_senha, _ = st.columns([0.8, 1.35, 0.8])
-    with col_senha:
-        with st.container(border=True):
-            st.markdown(
-                """
-                <div class="password-panel-header">
-                    <h2>Trocar senha</h2>
-                    <p>Informe sua senha atual e defina uma nova senha de acesso.</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            with st.form("form_troca_senha_manual"):
-                senha_atual = st.text_input("Senha atual", type="password")
-                nova_senha = st.text_input("Nova senha", type="password")
-                confirmar_senha = st.text_input("Confirmar nova senha", type="password")
-                col1, col2 = st.columns(2)
-                trocar = col1.form_submit_button("Salvar nova senha", use_container_width=True)
-                cancelar = col2.form_submit_button("Cancelar", use_container_width=True)
-
-    if cancelar:
-        st.session_state.exibir_troca_senha_manual = False
-        st.rerun()
-
-    if not trocar:
-        st.stop()
-
-    if not validar_login(config, usuario, senha_atual):
-        st.error("Senha atual invalida.")
-        st.stop()
-    if not nova_senha or not confirmar_senha:
-        st.error("Informe e confirme a nova senha.")
-        st.stop()
-    if nova_senha != confirmar_senha:
-        st.error("As senhas informadas nao conferem.")
-        st.stop()
-    if len(nova_senha) < 6:
-        st.error("A nova senha precisa ter pelo menos 6 caracteres.")
-        st.stop()
-    if nova_senha == senha_atual:
-        st.error("A nova senha precisa ser diferente da senha atual.")
-        st.stop()
-
-    try:
-        atualizar_senha_usuario(config, usuario, nova_senha)
-    except ValueError as erro:
-        st.error(str(erro))
-        st.stop()
-
-    st.session_state.exibir_troca_senha_manual = False
-    st.session_state.exibir_troca_senha_padrao = False
-    st.session_state.senha_padrao_mantida = False
-    sucesso_temporario("Senha alterada com sucesso.")
+            if entrar:
+                usuario = usuario.strip().upper()
+                empresas_liberadas = empresas_do_usuario(config, usuario)
+                if validar_login(config, usuario, senha) and empresas_liberadas:
+                    st.session_state.autenticado = True
+                    st.session_state.usuario_logado = usuario
+                    st.session_state.usuario_login = usuario
+                    st.session_state.empresa_logada = ""
+                    st.session_state.modulo_atual = "contas_a_pagar"
+                    st.session_state.exibir_troca_senha_padrao = senha == "123456"
+                    st.session_state.exibir_troca_senha_manual = False
+                    st.session_state.senha_padrao_mantida = False
+                    sincronizar_estado_url()
+                    st.rerun()
+                else:
+                    st.error("Usuario ou senha invalida.")
 
 
 def logout() -> None:
+    invalidar_sessao_autenticacao(str(st.session_state.get("auth_token", "")))
     st.session_state.autenticado = False
+    st.session_state.auth_token = ""
     st.session_state.usuario_logado = ""
     st.session_state.empresa_logada = ""
     st.session_state.exibir_troca_senha_padrao = False
     st.session_state.senha_padrao_mantida = False
     st.session_state.exibir_troca_senha_manual = False
+    limpar_estado_url()
 
 
 def voltar_dashboard_empresas() -> None:
     st.session_state.empresa_logada = ""
+    st.session_state.modulo_atual = "contas_a_pagar"
+    sincronizar_estado_url()
 
 
 def selecionar_empresa(empresa: str, config: dict) -> None:
     st.session_state.empresa_logada = empresa
     st.session_state.modulo_atual = "contas_a_pagar"
+    sincronizar_estado_url()
 
 
 def selecionar_modulo(modulo_id: str) -> None:
     st.session_state.modulo_atual = modulo_id
-
-
-def abrir_troca_senha() -> None:
-    st.session_state.exibir_troca_senha_manual = True
+    sincronizar_estado_url()
 
 
 def exibir_menu_contabil() -> None:
@@ -1948,12 +1928,10 @@ def sidebar_filtros(config: dict) -> tuple[str, str]:
     st.sidebar.title("Sessao")
     st.sidebar.text_input("Usuario", value=usuario, disabled=True)
     st.sidebar.text_input("Empresa", value=empresa, disabled=True)
-    st.sidebar.text_input("Perfil", value=rotulo_perfil(perfil_do_usuario(config, usuario)), disabled=True)
     st.sidebar.divider()
     st.sidebar.success("Acesso liberado")
-    st.sidebar.button("Trocar senha", use_container_width=True, on_click=abrir_troca_senha)
     st.sidebar.button("Trocar empresa", use_container_width=True, on_click=voltar_dashboard_empresas)
-    st.sidebar.button("Trocar usuário", use_container_width=True, on_click=logout)
+    st.sidebar.button("Sair", use_container_width=True, on_click=logout)
     return empresa, usuario
 
 
@@ -1976,14 +1954,12 @@ def dashboard_empresas(config: dict, df: pd.DataFrame) -> None:
     st.sidebar.divider()
     st.sidebar.title("Sessao")
     st.sidebar.text_input("Usuario", value=usuario, disabled=True)
-    st.sidebar.button("Trocar senha", use_container_width=True, on_click=abrir_troca_senha)
-    st.sidebar.button("Trocar usuário", use_container_width=True, on_click=logout)
+    st.sidebar.button("Sair", use_container_width=True, on_click=logout)
 
-    renderizar_relogio_clima()
     st.title("Dashboard por empresa")
     st.caption("Escolha uma empresa para abrir as contas a pagar e os indicadores dela.")
 
-    cols = st.columns(4, gap="medium")
+    cols = st.columns(2, gap="medium")
     for indice, empresa in enumerate(empresas):
         contas_empresa = df.loc[
             (df["empresa"] == empresa)
@@ -2097,7 +2073,8 @@ def preparar_tabela_contas(df: pd.DataFrame) -> pd.DataFrame:
         "criado_em",
         "criado_por",
     ]
-    dados = df.sort_values(["vencimento_dt", "descricao"], ascending=[False, True], na_position="last").copy()
+    dados = remover_linhas_em_branco(df)
+    dados = dados.sort_values(["vencimento_dt", "descricao"], na_position="last").copy()
     dados = dados[[coluna for coluna in colunas if coluna in dados.columns]]
     if "vencimento" in dados:
         dados["vencimento"] = dados["vencimento"].apply(formatar_data_br)
@@ -2121,6 +2098,12 @@ def preparar_tabela_contas(df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def altura_dataframe(qtd_linhas: int) -> int:
+    if qtd_linhas <= 0:
+        return 120
+    return 46 + (qtd_linhas * 36)
+
+
 def estilo_status_linha(linha: pd.Series) -> list[str]:
     status = str(linha.get("Status", "")).strip().lower()
     if conta_vencida(linha):
@@ -2136,6 +2119,7 @@ def exibir_contas(df: pd.DataFrame) -> None:
     tabela = preparar_tabela_contas(df)
     st.dataframe(
         tabela.style.apply(estilo_status_linha, axis=1),
+        height=altura_dataframe(len(tabela)),
         use_container_width=True,
         hide_index=True,
     )
@@ -2155,29 +2139,31 @@ def selecionar_ordenacao_contas(campo: str) -> None:
     atual = st.session_state.get("contas_ordem_campo", "")
     crescente = st.session_state.get("contas_ordem_crescente", True)
     st.session_state.contas_ordem_campo = campo
-    if campo == "vencimento":
-        st.session_state.contas_ordem_crescente = False
-    else:
-        st.session_state.contas_ordem_crescente = not crescente if atual == campo else True
+    st.session_state.contas_ordem_crescente = not crescente if atual == campo else True
 
 
 def rotulo_ordenacao(campo: str) -> str:
     info = ORDENACOES_CONTAS[campo]
-    campo_atual = st.session_state.get("contas_ordem_campo", "vencimento")
-    crescente = False if campo == "vencimento" else bool(st.session_state.get("contas_ordem_crescente", False))
-    if campo_atual != campo:
+    if st.session_state.get("contas_ordem_campo") != campo:
         return f"{info['label']} ↕"
-    return f"{info['label']} {'↑' if crescente else '↓'}"
+    return f"{info['label']} {'↑' if st.session_state.get('contas_ordem_crescente', True) else '↓'}"
 
 
 def ordenar_contas_exibidas(contas: pd.DataFrame) -> pd.DataFrame:
-    campo = st.session_state.get("contas_ordem_campo", "vencimento")
+    campo = st.session_state.get("contas_ordem_campo", "")
     if campo not in ORDENACOES_CONTAS:
-        campo = "vencimento"
+        dados = contas.copy()
+        dados["_ordem_recente"] = pd.to_datetime(dados.get("criado_em", ""), errors="coerce")
+        dados["_ordem_documento"] = dados.get("documento", "").astype(str)
+        return dados.sort_values(
+            ["_ordem_recente", "_ordem_documento"],
+            ascending=[False, False],
+            na_position="last",
+        ).drop(columns=["_ordem_recente", "_ordem_documento"], errors="ignore")
 
     info = ORDENACOES_CONTAS[campo]
     coluna = str(info["coluna"])
-    crescente = False if campo == "vencimento" else bool(st.session_state.get("contas_ordem_crescente", True))
+    crescente = bool(st.session_state.get("contas_ordem_crescente", True))
     dados = contas.copy()
 
     if info["tipo"] == "data":
@@ -2195,22 +2181,13 @@ def ordenar_contas_exibidas(contas: pd.DataFrame) -> pd.DataFrame:
     return dados.sort_values("_ordem", ascending=crescente, na_position="last").drop(columns=["_ordem"], errors="ignore")
 
 
-def exibir_contas_com_acoes(
-    contas_exibidas: pd.DataFrame,
-    df_base: pd.DataFrame,
-    empresa: str,
-    usuario: str,
-    permissoes: dict[str, bool],
-) -> None:
+def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame, empresa: str, usuario: str) -> None:
     if contas_exibidas.empty:
         st.info("Nenhum registro encontrado para este filtro.")
         return
 
     contas = ordenar_contas_exibidas(contas_exibidas)
-    larguras = [1.35, 2.4, 2.25, 1.25, 1, 1.35]
-    acoes = [acao for acao in ["editar", "duplicar", "pagar", "excluir"] if permissoes.get(acao)]
-    if acoes:
-        larguras.append(1.9)
+    larguras = [1.35, 2.4, 2.25, 1.25, 1, 1.35, 1.45]
     cabecalho = st.columns(larguras)
     for col, campo in zip(cabecalho[:6], ORDENACOES_CONTAS.keys()):
         col.button(
@@ -2220,8 +2197,7 @@ def exibir_contas_com_acoes(
             args=(campo,),
             use_container_width=True,
         )
-    if acoes:
-        cabecalho[6].caption("Ações")
+    cabecalho[6].caption("Ações")
 
     for indice, linha in contas.iterrows():
         nivel = nivel_prazo_conta(linha)
@@ -2233,31 +2209,26 @@ def exibir_contas_com_acoes(
         escrever_celula_conta(cols[3], formatar_moeda_br(float(linha.get("valor", 0) or 0)), nivel, nowrap=True)
         escrever_celula_conta(cols[4], "vencido" if nivel == "vencida" else str(linha.get("status", "")), nivel, nowrap=True, indicador=indicador)
         escrever_celula_conta(cols[5], str(linha.get("documento", "")), nivel)
-        if not acoes:
-            continue
-        acao_cols = cols[6].columns(len(acoes))
-        posicao_acao = 0
-        if permissoes.get("editar") and acao_cols[posicao_acao].button("✏️", key=f"editar_{indice}", help="Editar conta"):
+        acao_cols = cols[6].columns(3)
+        if acao_cols[0].button("✏️", key=f"editar_{indice}", help="Editar conta"):
             selecionar_conta_para_edicao(indice)
             st.rerun()
-        posicao_acao += 1 if permissoes.get("editar") else 0
-        if permissoes.get("duplicar") and acao_cols[posicao_acao].button("📄", key=f"duplicar_{indice}", help="Duplicar conta"):
-            selecionar_conta_para_duplicacao(indice)
-            st.rerun()
-        posicao_acao += 1 if permissoes.get("duplicar") else 0
-        if permissoes.get("pagar") and acao_cols[posicao_acao].button("✅", key=f"pagar_{indice}", help="Marcar como pago"):
+        if acao_cols[1].button("✅", key=f"pagar_{indice}", help="Marcar como pago"):
             try:
                 df_atualizado = marcar_conta_como_paga(df_base, indice, usuario)
-                salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
-                sucesso_temporario("Salvo com sucesso.")
+                if salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa) is None:
+                    return
+                st.success("Conta marcada como paga.")
+                st.rerun()
             except ValueError as erro:
                 st.error(str(erro))
-        posicao_acao += 1 if permissoes.get("pagar") else 0
-        if permissoes.get("excluir") and acao_cols[posicao_acao].button("🗑️", key=f"excluir_{indice}", help="Excluir conta"):
+        if acao_cols[2].button("🗑️", key=f"excluir_{indice}", help="Excluir conta"):
             try:
                 df_atualizado = excluir_conta_a_pagar(df_base, indice, usuario)
-                salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
-                sucesso_temporario("Salvo com sucesso.")
+                if salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa) is None:
+                    return
+                st.success("Conta excluída da lista ativa.")
+                st.rerun()
             except ValueError as erro:
                 st.error(str(erro))
 
@@ -2361,41 +2332,6 @@ def adicionar_conta_a_pagar(
     return pd.concat([df, pd.DataFrame([nova_linha])], ignore_index=True)
 
 
-def duplicar_conta_a_pagar(
-    df: pd.DataFrame,
-    indice: int,
-    usuario: str,
-    novo_vencimento: object,
-    novo_valor: float,
-) -> pd.DataFrame:
-    if indice not in df.index:
-        raise ValueError("Conta selecionada nao foi encontrada na base atual.")
-
-    linha = df.loc[indice]
-    vencimento_original = pd.to_datetime(linha.get("vencimento"), errors="coerce")
-    vencimento_novo = pd.to_datetime(novo_vencimento, errors="coerce")
-    if pd.isna(vencimento_original) or pd.isna(vencimento_novo):
-        raise ValueError("Informe uma nova data de vencimento valida.")
-    if vencimento_novo.date() == vencimento_original.date():
-        raise ValueError("Altere a data de vencimento para salvar a duplicacao.")
-    if novo_valor is None or float(novo_valor) <= 0:
-        raise ValueError("Informe um valor maior que zero.")
-
-    nova_linha = linha.copy()
-    nova_linha["vencimento"] = vencimento_novo.strftime("%Y-%m-%d")
-    nova_linha["pagamento_recebimento"] = ""
-    nova_linha["valor"] = float(novo_valor)
-    nova_linha["status"] = "pendente"
-    nova_linha["documento"] = f"AP-{linha.get('empresa', '')}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-    nova_linha["criado_em"] = agora_br()
-    nova_linha["criado_por"] = usuario
-    nova_linha["excluido_em"] = ""
-    nova_linha["excluido_por"] = ""
-    nova_linha["ativo"] = True
-    nova_linha["tipo"] = "conta_a_pagar"
-    return pd.concat([df, pd.DataFrame([nova_linha])], ignore_index=True)
-
-
 def excluir_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str) -> pd.DataFrame:
     df_atualizado = df.copy()
     if indice not in df_atualizado.index:
@@ -2460,7 +2396,6 @@ def editar_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str, dados_form
         dados_formulario["documento"],
     )
     atualizacoes = {
-        "tipo": "conta_a_pagar",
         "descricao": dados_formulario["descricao"],
         "fornecedor_cliente": dados_formulario["fornecedor"],
         "vencimento": dados_formulario["vencimento"].strftime("%Y-%m-%d"),
@@ -2473,9 +2408,6 @@ def editar_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str, dados_form
         "tipo_conta_nome": tipo_nome,
         "codigo_pagamento": dados_formulario["codigo_pagamento"],
         "criado_por": str(df_atualizado.iat[posicao, df_atualizado.columns.get_loc("criado_por")] or usuario),
-        "excluido_em": "",
-        "excluido_por": "",
-        "ativo": True,
     }
     if anexo_nome:
         atualizacoes["anexo_nome"] = anexo_nome
@@ -2487,10 +2419,6 @@ def editar_conta_a_pagar(df: pd.DataFrame, indice: int, usuario: str, dados_form
 
 def selecionar_conta_para_edicao(indice: int) -> None:
     st.session_state.conta_edicao_indice = indice
-
-
-def selecionar_conta_para_duplicacao(indice: int) -> None:
-    st.session_state.conta_duplicacao_indice = indice
 
 
 def selecionar_manutencao(secao: str) -> None:
@@ -2512,7 +2440,6 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         opcoes_descricao,
         "Digite a nova descricao",
         "inclusao_descricao",
-        permitir_vazio=True,
     )
     fornecedor_sel, fornecedor_novo = campo_opcao_nova(
         c2,
@@ -2520,7 +2447,6 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         opcoes_fornecedor,
         "Digite o novo fornecedor",
         "inclusao_fornecedor",
-        permitir_vazio=True,
     )
     tipo_conta_sel, tipo_conta_novo = campo_opcao_nova(
         st,
@@ -2528,14 +2454,13 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         opcoes_tipo,
         "Digite o novo tipo de conta",
         "inclusao_tipo_conta",
-        permitir_vazio=True,
     )
 
     with st.form("form_conta_a_pagar", clear_on_submit=True):
         c3, c4, c5 = st.columns([1, 1, 1])
-        vencimento = campo_data_ptbr(c3, "Vencimento", "inclusao_vencimento", permitir_vazio=True)
+        vencimento = c3.date_input("Vencimento", format="DD/MM/YYYY")
         valor_texto = c4.text_input("Valor", placeholder="Ex.: 1.000,00")
-        status = c5.selectbox("Status", ["", "aberto", "pendente", "vencido"], index=0)
+        status = c5.selectbox("Status", ["aberto", "pendente", "vencido"])
 
         observacao = st.text_area("Descricao / observacao livre", height=88)
         c6, c7 = st.columns([1, 1])
@@ -2558,9 +2483,13 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     _, tipo_nome = obter_tipo_conta(tipo_conta)
     valor = parse_valor_br(valor_texto)
 
-    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or vencimento is None or not status or valor is None or valor <= 0:
-        st.error("Preencha descricao, fornecedor, tipo de conta, vencimento, status e valor maior que zero. Use ponto para milhar e virgula para centavos.")
+    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor is None or valor <= 0:
+        st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero. Use ponto para milhar e virgula para centavos.")
         return
+    if anexo is None and not codigo_pagamento.strip():
+        st.error("Inclua um anexo ou informe o codigo de barras/chave Pix.")
+        return
+
     documento_final = f"AP-{empresa}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     dados_formulario = {
         "descricao": descricao.strip(),
@@ -2576,8 +2505,10 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         "codigo_pagamento": codigo_pagamento.strip(),
     }
     df_atualizado = adicionar_conta_a_pagar(df, empresa, usuario, dados_formulario)
-    salvar_dados_empresa(df_atualizado, empresa)
-    sucesso_temporario("Salvo com sucesso.")
+    if salvar_dados_empresa(df_atualizado, empresa) is None:
+        return
+    st.success("Conta a pagar incluida com sucesso.")
+    st.rerun()
 
 def importacao_massa_contas(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.markdown("### Importar contas por CSV")
@@ -2620,8 +2551,10 @@ def importacao_massa_contas(df: pd.DataFrame, empresa: str, usuario: str) -> Non
         return
 
     df_atualizado = pd.concat([df, novas_contas], ignore_index=True)
-    salvar_dados_empresa(df_atualizado, empresa)
-    sucesso_temporario(f"{len(novas_contas)} conta(s) salva(s) com sucesso.")
+    if salvar_dados_empresa(df_atualizado, empresa) is None:
+        return
+    st.success(f"{len(novas_contas)} conta(s) importada(s) com sucesso.")
+    st.rerun()
 
 
 def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str, key_prefix: str) -> None:
@@ -2668,7 +2601,7 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
         fornecedor = c2.text_input("Fornecedor", value=str(linha.get("fornecedor_cliente", "")))
 
         c3, c4, c5 = st.columns([1, 1, 1])
-        vencimento = campo_data_ptbr(c3, "Vencimento", f"{key_prefix}_vencimento", vencimento_atual.date())
+        vencimento = c3.date_input("Vencimento", value=vencimento_atual.date(), format="DD/MM/YYYY")
         valor_texto = c4.text_input(
             "Valor",
             value=formatar_moeda_br(float(linha.get("valor", 0) or 0)).replace("R$ ", ""),
@@ -2706,9 +2639,13 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
     tipo_conta = resolver_opcao_digitavel(tipo_conta_sel, tipo_conta_novo)
     _, tipo_nome = obter_tipo_conta(tipo_conta)
     valor = parse_valor_br(valor_texto)
-    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or vencimento is None or valor is None or valor <= 0:
-        st.error("Preencha descricao, fornecedor, tipo de conta, vencimento valido e valor maior que zero. Use ponto para milhar e virgula para centavos.")
+    if not descricao.strip() or not fornecedor.strip() or not tipo_conta.strip() or valor is None or valor <= 0:
+        st.error("Preencha descricao, fornecedor, tipo de conta e valor maior que zero. Use ponto para milhar e virgula para centavos.")
         return
+    if not str(linha.get("anexo_nome", "") or "").strip() and anexo is None and not codigo_pagamento.strip():
+        st.error("Inclua um anexo ou informe o codigo de barras/chave Pix.")
+        return
+
     dados_formulario = {
         "descricao": descricao.strip(),
         "fornecedor": fornecedor.strip(),
@@ -2728,88 +2665,21 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
         st.error(str(erro))
         return
 
-    salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
+    if salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa) is None:
+        return
     st.session_state.pop("conta_edicao_indice", None)
-    sucesso_temporario("Salvo com sucesso.")
-
-
-def formulario_duplicacao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str, key_prefix: str) -> None:
-    if indice not in df.index:
-        st.error("Conta selecionada nao foi encontrada.")
-        if st.button("Fechar", key=f"{key_prefix}_fechar_indice_invalido"):
-            st.session_state.pop("conta_duplicacao_indice", None)
-            st.rerun()
-        return
-
-    linha = df.loc[indice]
-    vencimento_original = pd.to_datetime(linha.get("vencimento"), errors="coerce")
-    if pd.isna(vencimento_original):
-        vencimento_original = pd.Timestamp(datetime.now().date())
-
-    st.caption(
-        f"Origem: {formatar_data_br(linha.get('vencimento'))} | "
-        f"{linha.get('fornecedor_cliente', '')} | "
-        f"{formatar_moeda_br(float(linha.get('valor', 0) or 0))}"
-    )
-
-    with st.form(f"{key_prefix}_form_duplicar_conta"):
-        c1, c2 = st.columns(2)
-        c1.text_input("Descricao", value=str(linha.get("descricao", "")), disabled=True)
-        c2.text_input("Fornecedor", value=str(linha.get("fornecedor_cliente", "")), disabled=True)
-
-        c3, c4, c5 = st.columns([1, 1, 1])
-        vencimento = campo_data_ptbr(c3, "Novo vencimento", f"{key_prefix}_vencimento", vencimento_original.date())
-        valor_texto = c4.text_input(
-            "Valor",
-            value=formatar_moeda_br(float(linha.get("valor", 0) or 0)).replace("R$ ", ""),
-            placeholder="Ex.: 1.000,00",
-        )
-        c5.text_input("Status da nova conta", value="pendente", disabled=True)
-
-        st.text_area(
-            "Descricao / observacao livre",
-            value=str(linha.get("observacao", "") or "").strip(),
-            height=88,
-            disabled=True,
-        )
-        b1, b2 = st.columns(2)
-        salvar = b1.form_submit_button("Salvar nova pendencia", use_container_width=True)
-        cancelar = b2.form_submit_button("Cancelar", use_container_width=True)
-
-    if cancelar:
-        st.session_state.pop("conta_duplicacao_indice", None)
-        st.rerun()
-    if not salvar:
-        return
-
-    valor = parse_valor_br(valor_texto)
-    try:
-        df_atualizado = duplicar_conta_a_pagar(df, indice, usuario, vencimento, valor)
-    except ValueError as erro:
-        st.error(str(erro))
-        return
-
-    salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
-    st.session_state.pop("conta_duplicacao_indice", None)
-    sucesso_temporario("Nova pendencia salva com sucesso.")
+    st.success("Conta a pagar atualizada com sucesso.")
+    st.rerun()
 
 
 if hasattr(st, "dialog"):
     @st.dialog("Editar conta a pagar")
     def janela_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
         formulario_edicao_conta(df, indice, empresa, usuario, "janela_edicao")
-
-    @st.dialog("Duplicar conta a pagar")
-    def janela_duplicacao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
-        formulario_duplicacao_conta(df, indice, empresa, usuario, "janela_duplicacao")
 else:
     def janela_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
         st.warning("Atualize o Streamlit para abrir edicao em janela. Usando edicao na pagina.")
         formulario_edicao_conta(df, indice, empresa, usuario, "janela_edicao")
-
-    def janela_duplicacao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario: str) -> None:
-        st.warning("Atualize o Streamlit para abrir duplicacao em janela. Usando duplicacao na pagina.")
-        formulario_duplicacao_conta(df, indice, empresa, usuario, "janela_duplicacao")
 
 
 def area_edicao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario: str) -> None:
@@ -2860,13 +2730,15 @@ def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario:
             return
 
         df_atualizado = excluir_conta_a_pagar(df, opcoes[selecionada], usuario)
-        salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa)
-        sucesso_temporario("Salvo com sucesso.")
+        if salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa) is None:
+            return
+        st.success("Conta a pagar excluída da lista ativa.")
+        st.rerun()
 
 
-def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str, config: dict) -> None:
+def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
+    resumo_base = obter_resumo_base_empresa(empresa, df)
     contas = filtrar_contas_a_pagar_abertas(df, empresa)
-    permissoes = permissoes_do_usuario(config, usuario)
     hoje = pd.Timestamp(datetime.now().date())
     total_aberto = contas["valor"].sum()
     vencidas = contas.loc[contas.apply(conta_vencida, axis=1)]
@@ -2883,27 +2755,15 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str, config: 
     st.subheader("Painel de pagamentos")
     st.caption("Visao para acompanhar o que precisa ser pago por vencimento.")
 
+    if resumo_base.get("status") in {"ausente", "vazia", "erro"}:
+        exibir_alerta_base_operacional(resumo_base)
+
     renderizar_metricas(
         [
             {"label": "Total a pagar", "value": formatar_moeda_br(total_aberto)},
-            {
-                "label": "Vencidas",
-                "value": formatar_moeda_br(vencidas["valor"].sum()),
-                "delta": int(len(vencidas)),
-                "nivel": "critico" if len(vencidas) else "",
-            },
-            {
-                "label": "Vence hoje",
-                "value": formatar_moeda_br(vence_hoje["valor"].sum()),
-                "delta": int(len(vence_hoje)),
-                "nivel": "alerta" if len(vence_hoje) else "",
-            },
-            {
-                "label": "Proximos 7 dias",
-                "value": formatar_moeda_br(proximos_7["valor"].sum()),
-                "delta": int(len(proximos_7)),
-                "nivel": "alerta" if len(proximos_7) else "",
-            },
+            {"label": "Vencidas", "value": formatar_moeda_br(vencidas["valor"].sum()), "delta": int(len(vencidas))},
+            {"label": "Vence hoje", "value": formatar_moeda_br(vence_hoje["valor"].sum()), "delta": int(len(vence_hoje))},
+            {"label": "Proximos 7 dias", "value": formatar_moeda_br(proximos_7["valor"].sum()), "delta": int(len(proximos_7))},
             {"label": "Contas em aberto", "value": int(len(contas))},
             {"label": "No prazo", "value": int(len(abertas_no_prazo))},
             {
@@ -2914,7 +2774,10 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str, config: 
     )
 
     if not len(contas):
-        st.success("Nenhuma conta a pagar em aberto para esta empresa.")
+        if resumo_base.get("status") == "ok":
+            st.success("Nenhuma conta a pagar em aberto para esta empresa.")
+        elif resumo_base.get("status") == "vazia":
+            st.warning("A base operacional esta vazia. Se isso nao era esperado, restaure um backup antes de registrar novas contas.")
 
     st.markdown("### Contas para pagar")
     st.download_button(
@@ -2926,27 +2789,14 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str, config: 
     )
 
     if contas.empty:
-        st.info("Nenhum registro encontrado para este filtro.")
+        if resumo_base.get("status") == "ok":
+            st.info("Nenhum registro encontrado para este filtro.")
     else:
-        exibir_contas_com_acoes(contas, df, empresa, usuario, permissoes)
+        exibir_contas_com_acoes(contas, df, empresa, usuario)
 
     indice_edicao = st.session_state.get("conta_edicao_indice")
-    if indice_edicao is not None and permissoes["editar"]:
+    if indice_edicao is not None:
         janela_edicao_conta(df, indice_edicao, empresa, usuario)
-
-    indice_duplicacao = st.session_state.get("conta_duplicacao_indice")
-    if indice_duplicacao is not None and permissoes["duplicar"]:
-        janela_duplicacao_conta(df, indice_duplicacao, empresa, usuario)
-
-    if not permissoes["manutencao"]:
-        if permissoes["pagar"]:
-            st.info("Perfil financeiro: este usuario pode visualizar, baixar relatorios e marcar contas como pagas.")
-        else:
-            st.info("Perfil de consulta: este usuario pode visualizar e baixar relatorios, mas nao pode incluir, duplicar, editar, pagar, importar ou excluir contas.")
-        st.session_state.manutencao_ativa = ""
-        st.session_state.pop("conta_edicao_indice", None)
-        st.session_state.pop("conta_duplicacao_indice", None)
-        return
 
     st.divider()
     st.markdown("### Manutencao")
@@ -2967,22 +2817,21 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str, config: 
         st.markdown("#### 🗑️ Excluir conta a pagar")
         area_exclusao(df, contas, empresa, usuario)
 
+    renderizar_salvamento_pendente()
+
 def main() -> None:
     configurar_pagina()
+    aplicar_emojis_botoes_filtro()
     config = carregar_config()
     inicializar_sessao()
+    restaurar_estado_sessao()
+    expirar_sessao_se_necessario()
 
     if not st.session_state.autenticado:
         tela_login(config)
         st.stop()
 
-    if st.session_state.get("exibir_troca_senha_padrao"):
-        tela_troca_senha_padrao(config)
-        st.stop()
-
-    if st.session_state.get("exibir_troca_senha_manual"):
-        tela_troca_senha_manual(config)
-        st.stop()
+    renderizar_menu_direito(config)
 
     if not st.session_state.get("empresa_logada"):
         dashboard_empresas(config, carregar_dados_empresas(config))
@@ -2990,13 +2839,20 @@ def main() -> None:
 
     empresa, usuario = sidebar_filtros(config)
     df = carregar_dados_empresa(empresa)
+    resumo_base = obter_resumo_base_empresa(empresa, df)
     contas = filtrar_contas_a_pagar_abertas(df, empresa)
-    status_geral, status_tipo = status_geral_contas(contas)
+    if resumo_base.get("status") == "ausente":
+        status_geral, status_tipo = "Base operacional ausente", "alerta"
+    elif resumo_base.get("status") == "vazia":
+        status_geral, status_tipo = "Base operacional vazia", "alerta"
+    elif resumo_base.get("status") == "erro":
+        status_geral, status_tipo = "Falha ao ler base operacional", "alerta"
+    else:
+        status_geral, status_tipo = status_geral_contas(contas)
 
-    renderizar_relogio_clima()
     mostrar_cabecalho(empresa, status_geral, status_tipo)
     if st.session_state.get("modulo_atual", "contas_a_pagar") == "contas_a_pagar":
-        pagina_contas_a_pagar(df, empresa, usuario, config)
+        pagina_contas_a_pagar(df, empresa, usuario)
     else:
         st.info("Este módulo ainda não está liberado.")
 

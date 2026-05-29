@@ -11,6 +11,7 @@ Thumbs.db
 desktop.ini
 data/dados_portal.csv
 data/empresas/
+data/backups/
 data/anexos/
 deploy_streamlit_*/
 deploy_streamlit_*.zip

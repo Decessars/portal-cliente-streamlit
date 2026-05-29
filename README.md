@@ -1,23 +1,33 @@
-# Portal Contábil do Cliente
+# Portal Contabil do Cliente
 
-Aplicativo web em Streamlit para um portal contábil simples, separado do sistema principal `dominio_dmls_08.py`.
+Aplicativo web em Streamlit para um portal contabil simples, separado do sistema principal `dominio_dmls_08.py`.
 
-Nesta versão, a função principal é **Contas a Pagar**:
+Nesta versao, a funcao principal e **Contas a Pagar**:
 
-- login por usuário e senha;
+- login por usuario e senha;
 - dashboard por empresa apos o login;
-- relógio em tempo real e clima local mediante permissão de localização do navegador;
+- relogio em tempo real e clima local mediante permissao do navegador;
 - lista de contas em aberto;
 - download de contas em Excel formatado;
-- inclusão manual de contas a pagar;
+- inclusao manual de contas a pagar;
 - upload de anexos, como boletos, notas fiscais e guias;
-- exclusão lógica de contas, preservando auditoria;
-- registro de data/hora e usuário responsável pela inclusão ou exclusão;
+- exclusao logica de contas, preservando auditoria;
+- registro de data/hora e usuario responsavel pela inclusao ou exclusao;
 - tipos de conta baseados nos passivos monitorados no `dominio_dmls_08.py`.
 
-O app não usa banco de dados. As alterações manuais são gravadas em `data/dados_portal.csv`, arquivo ignorado pelo Git para evitar envio acidental de dados operacionais.
+## Persistencia Dos Dados
 
-As bases operacionais atuais ficam separadas por empresa em `data/empresas/<EMPRESA>/dados_portal.csv`. O painel e as telas sao iguais para todas as empresas, mas cada empresa le e grava seu proprio arquivo.
+O app nao usa banco de dados. As alteracoes manuais sao gravadas por empresa em:
+
+`data/empresas/<EMPRESA>/dados_portal.csv`
+
+Cada empresa le e grava o proprio arquivo. A pasta `data/empresas/` precisa ser persistida fora do ciclo de vida temporario da hospedagem.
+
+Antes de cada gravacao, o app cria backup automatico em:
+
+`data/backups/<EMPRESA>/dados_portal_YYYYMMDD_HHMMSS.csv`
+
+Se o CSV operacional sumir, ficar vazio ou sofrer uma queda suspeita de registros/valor, o portal mostra alerta e bloqueia a sobrescrita ate confirmacao explicita.
 
 ## Como Rodar Localmente
 
@@ -33,7 +43,7 @@ Depois acesse:
 http://localhost:8501
 ```
 
-No Windows, também há dois atalhos na pasta do projeto:
+No Windows, tambem ha dois atalhos na pasta do projeto:
 
 - `Iniciar Portal Local.bat`: inicia o Streamlit localmente.
 - `Abrir Portal Local.url`: abre `http://localhost:8501` no navegador.
@@ -67,16 +77,29 @@ Quando um usuario entra com a senha padrao `123456`, o portal exibe um aviso par
 Depois do login, tambem e possivel trocar a senha pelo botao `Trocar senha` na barra lateral.
 O arquivo `usuarios_perfis.txt` fica na pasta do projeto apenas para consulta e e atualizado automaticamente a partir do `config_clientes.json`.
 
-## Publicação No Streamlit Community Cloud
+## Recuperacao De Dados
 
-1. Crie ou acesse o repositório no GitHub.
-2. Envie os arquivos desta pasta para o repositório.
+Se a base operacional de uma empresa desaparecer ou voltar zerada apos reinicio, use o alerta da tela de Contas a Pagar para restaurar o backup mais recente.
+
+Fluxo de recuperacao:
+
+1. Abra `data/backups/<EMPRESA>/`.
+2. Localize o arquivo `dados_portal_YYYYMMDD_HHMMSS.csv` mais recente.
+3. Copie esse backup para `data/empresas/<EMPRESA>/dados_portal.csv`.
+4. Reabra o portal.
+
+Se nao houver backup local, restaure a partir de uma exportacao anterior ou de um storage externo.
+
+## Publicacao No Streamlit Community Cloud
+
+1. Crie ou acesse o repositorio no GitHub.
+2. Envie os arquivos desta pasta para o repositorio.
 3. Acesse [Streamlit Community Cloud](https://streamlit.io/cloud).
 4. Clique em **Create app** ou **New app**.
-5. Selecione o repositório, a branch `main` e o arquivo principal `app.py`.
+5. Selecione o repositorio, a branch `main` e o arquivo principal `app.py`.
 6. Clique em **Deploy**.
 
-Se o app estiver dentro de uma subpasta do repositório, informe o caminho completo, por exemplo:
+Se o app estiver dentro de uma subpasta do repositorio, informe o caminho completo, por exemplo:
 
 ```text
 portal_cliente_streamlit/app.py
@@ -86,34 +109,36 @@ portal_cliente_streamlit/app.py
 
 ```text
 portal_cliente_streamlit/
-├── app.py
-├── requirements.txt
-├── README.md
-├── .gitignore
-├── config_clientes.json
-├── exportador_portal.py
-├── .streamlit/
-│   └── secrets.toml.example
-├── assets/
-│   ├── mh_log_logo_app_header.png
-│   └── mh_log_logo_app_512.png
-└── data/
-    └── dados_demo.csv
+|-- app.py
+|-- requirements.txt
+|-- README.md
+|-- .gitignore
+|-- config_clientes.json
+|-- exportador_portal.py
+|-- .streamlit/
+|   `-- secrets.toml.example
+|-- assets/
+|   |-- mh_log_logo_app_header.png
+|   `-- mh_log_logo_app_512.png
+`-- data/
+    `-- dados_demo.csv
 ```
 
 ## Arquivos Operacionais Locais
 
-Estes arquivos podem ser criados em uso local, mas não devem ser enviados ao GitHub:
+Estes arquivos podem ser criados em uso local, mas nao devem ser enviados ao GitHub:
 
-- `data/dados_portal.csv`
 - `data/empresas/`
+- `data/backups/`
 - `data/anexos/`
 - `.streamlit/secrets.toml`
 
-## Segurança
+## Seguranca
 
-Não suba dados reais sensíveis em repositório público.
+Nao suba dados reais sensiveis em repositorio publico.
 
-Não coloque senhas reais no GitHub. Para produção, use `st.secrets` no Streamlit Community Cloud ou outro mecanismo seguro de autenticação.
+Nao coloque senhas reais no GitHub. Para producao, use `st.secrets` no Streamlit Community Cloud ou outro mecanismo seguro de autenticacao.
 
-Os anexos salvos localmente no Streamlit Community Cloud podem ser temporários, porque a hospedagem gratuita não é um armazenamento permanente. Para uso real com clientes, o próximo passo é guardar anexos em serviço externo seguro, como Google Drive controlado, S3 ou banco com storage.
+Os anexos salvos localmente no Streamlit Community Cloud podem ser temporarios, porque a hospedagem gratuita nao e um armazenamento permanente. Para uso real com clientes, o proximo passo e guardar anexos em servico externo seguro, como Google Drive controlado, S3 ou banco com storage.
+
+Para dados operacionais, a recomendacao futura e substituir CSV local por banco de dados ou storage externo com retencao e backup.
