@@ -324,9 +324,19 @@ def configurar_pagina() -> None:
             }}
             .metric-grid {{
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
                 gap: 0.85rem;
                 margin: 0.9rem 0;
+            }}
+            .metric-row {{
+                display: grid;
+                gap: 0.85rem;
+                margin-bottom: 0.85rem;
+            }}
+            .metric-row.top {{
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }}
+            .metric-row.bottom {{
+                grid-template-columns: repeat(3, minmax(0, 1fr));
             }}
             .metric-card {{
                 background: var(--mh-panel);
@@ -341,6 +351,9 @@ def configurar_pagina() -> None:
                 font-size: 0.9rem;
                 font-weight: 700;
                 margin-bottom: 0.45rem;
+                display: flex;
+                align-items: center;
+                gap: 0.45rem;
             }}
             .metric-value {{
                 color: var(--mh-accent);
@@ -348,6 +361,25 @@ def configurar_pagina() -> None:
                 line-height: 1.15;
                 font-weight: 500;
                 white-space: nowrap;
+            }}
+            .metric-card.metric-danger {{
+                border-color: rgba(191, 63, 63, 0.28);
+                background: linear-gradient(180deg, rgba(191, 63, 63, 0.08), #ffffff 56%);
+            }}
+            .metric-card.metric-warning {{
+                border-color: rgba(154, 106, 31, 0.28);
+                background: linear-gradient(180deg, rgba(154, 106, 31, 0.08), #ffffff 56%);
+            }}
+            .metric-card.metric-ok {{
+                border-color: rgba(31, 122, 75, 0.28);
+                background: linear-gradient(180deg, rgba(31, 122, 75, 0.08), #ffffff 56%);
+            }}
+            .metric-card.metric-info {{
+                border-color: rgba(36, 107, 71, 0.22);
+                background: linear-gradient(180deg, rgba(36, 107, 71, 0.06), #ffffff 56%);
+            }}
+            .metric-card.metric-neutral {{
+                border-color: rgba(95, 109, 103, 0.18);
             }}
             .metric-delta {{
                 display: inline-flex;
@@ -548,8 +580,11 @@ def configurar_pagina() -> None:
                     font-size: 1.15rem;
                 }}
                 .metric-grid {{
-                    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
                     gap: 0.75rem;
+                }}
+                .metric-row.top,
+                .metric-row.bottom {{
+                    grid-template-columns: 1fr;
                 }}
                 .metric-card {{
                     padding: 0.85rem 0.95rem;
@@ -641,6 +676,35 @@ def renderizar_metricas(cards: list[dict[str, object]]) -> None:
         )
 
     st.markdown(f'<div class="metric-grid">{"".join(itens)}</div>', unsafe_allow_html=True)
+
+
+def renderizar_metricas_em_duas_linhas(cards: list[dict[str, object]]) -> None:
+    def render_card(card: dict[str, object]) -> str:
+        delta = card.get("delta")
+        emoji = str(card.get("emoji", ""))
+        tone = str(card.get("tone", "neutral")).strip().lower()
+        delta_html = f'<div class="metric-delta">↑ {escape(str(delta))}</div>' if delta is not None else ""
+        return (
+            f'<div class="metric-card metric-{escape(tone)}">'
+            f'<div class="metric-label"><span>{escape(emoji)}</span><span>{escape(str(card["label"]))}</span></div>'
+            f'<div class="metric-value">{escape(str(card["value"]))}</div>'
+            f"{delta_html}"
+            "</div>"
+        )
+
+    topo = cards[:4]
+    base = cards[4:]
+    topo_html = "".join(render_card(card) for card in topo)
+    base_html = "".join(render_card(card) for card in base)
+    st.markdown(
+        f"""
+        <div class="metric-grid">
+            <div class="metric-row top">{topo_html}</div>
+            <div class="metric-row bottom">{base_html}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def criar_config_demo() -> dict:
@@ -3061,17 +3125,19 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     if resumo_base.get("status") in {"ausente", "vazia", "erro"}:
         exibir_alerta_base_operacional(resumo_base)
 
-    renderizar_metricas(
+    renderizar_metricas_em_duas_linhas(
         [
-            {"label": "Total a pagar", "value": formatar_moeda_br(total_aberto)},
-            {"label": "Vencidas", "value": formatar_moeda_br(vencidas["valor"].sum()), "delta": int(len(vencidas))},
-            {"label": "Vence hoje", "value": formatar_moeda_br(vence_hoje["valor"].sum()), "delta": int(len(vence_hoje))},
-            {"label": "Proximos 7 dias", "value": formatar_moeda_br(proximos_7["valor"].sum()), "delta": int(len(proximos_7))},
-            {"label": "Contas em aberto", "value": int(len(contas))},
-            {"label": "No prazo", "value": int(len(abertas_no_prazo))},
+            {"label": "Total a pagar", "value": formatar_moeda_br(total_aberto), "tone": "neutral", "emoji": "💼"},
+            {"label": "Vencidas", "value": formatar_moeda_br(vencidas["valor"].sum()), "delta": int(len(vencidas)), "tone": "danger", "emoji": "🔴"},
+            {"label": "Vence hoje", "value": formatar_moeda_br(vence_hoje["valor"].sum()), "delta": int(len(vence_hoje)), "tone": "warning", "emoji": "🟠"},
+            {"label": "Proximos 7 dias", "value": formatar_moeda_br(proximos_7["valor"].sum()), "delta": int(len(proximos_7)), "tone": "info", "emoji": "🟢"},
+            {"label": "Contas em aberto", "value": int(len(contas)), "tone": "neutral", "emoji": "📄"},
+            {"label": "No prazo", "value": int(len(abertas_no_prazo)), "tone": "ok", "emoji": "✅"},
             {
                 "label": "Ticket medio",
                 "value": formatar_moeda_br(total_aberto / len(contas)) if len(contas) else formatar_moeda_br(0),
+                "tone": "warning",
+                "emoji": "📊",
             },
         ]
     )
