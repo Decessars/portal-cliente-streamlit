@@ -7,7 +7,7 @@ import shutil
 import secrets
 import time
 import unicodedata
-from datetime import datetime
+from datetime import date, datetime
 from html import escape
 from io import BytesIO
 from pathlib import Path
@@ -19,6 +19,11 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
+
+try:
+    from st_rsuite import date_picker as rsuite_date_picker
+except Exception:  # pragma: no cover - fallback when component is unavailable
+    rsuite_date_picker = None
 
 
 BASE_DIR = Path(__file__).parent
@@ -233,20 +238,20 @@ def configurar_pagina() -> None:
                 margin: 0 auto 0.75rem;
             }}
             .main .block-container {{
-                padding-top: 1rem;
-                padding-bottom: 2rem;
+                padding-top: 0.7rem;
+                padding-bottom: 1.2rem;
             }}
             .portal-header {{
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
                 gap: 1.25rem;
-                padding: 1rem 1.15rem;
+                padding: 0.78rem 0.95rem;
                 background: var(--mh-panel);
                 border: 1px solid var(--mh-border);
                 border-radius: 8px;
                 box-shadow: 0 8px 22px rgba(19, 34, 29, 0.06);
-                margin-bottom: 1rem;
+                margin-bottom: 0.72rem;
             }}
             .portal-brand {{
                 display: flex;
@@ -255,7 +260,7 @@ def configurar_pagina() -> None:
                 min-width: 0;
             }}
             .portal-logo {{
-                width: 150px;
+                width: 124px;
                 max-width: 100%;
                 height: auto;
                 object-fit: contain;
@@ -263,31 +268,31 @@ def configurar_pagina() -> None:
             }}
             .portal-title {{
                 margin: 0;
-                font-size: 1.85rem;
+                font-size: 1.52rem;
                 line-height: 1.1;
                 color: var(--mh-text);
                 font-weight: 800;
                 letter-spacing: 0;
             }}
             .portal-subtitle {{
-                margin: 0.35rem 0 0;
+                margin: 0.25rem 0 0;
                 color: var(--mh-muted);
-                font-size: 0.98rem;
+                font-size: 0.9rem;
             }}
             .portal-meta {{
                 display: flex;
                 flex-wrap: wrap;
                 justify-content: flex-end;
-                gap: 0.55rem;
-                min-width: 18rem;
+                gap: 0.45rem;
+                min-width: 16rem;
             }}
             .meta-pill {{
                 border: 1px solid var(--mh-border);
                 border-radius: 8px;
                 background: var(--mh-panel-soft);
                 color: var(--mh-text);
-                padding: 0.5rem 0.68rem;
-                font-size: 0.88rem;
+                padding: 0.42rem 0.62rem;
+                font-size: 0.84rem;
                 font-weight: 700;
             }}
             .meta-pill span {{
@@ -324,13 +329,13 @@ def configurar_pagina() -> None:
             }}
             .metric-grid {{
                 display: grid;
-                gap: 0.85rem;
-                margin: 0.9rem 0;
+                gap: 0.6rem;
+                margin: 0.6rem 0 0.78rem;
             }}
             .metric-row {{
                 display: grid;
-                gap: 0.85rem;
-                margin-bottom: 0.85rem;
+                gap: 0.6rem;
+                margin-bottom: 0.6rem;
             }}
             .metric-row.top {{
                 grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -342,22 +347,22 @@ def configurar_pagina() -> None:
                 background: var(--mh-panel);
                 border: 1px solid var(--mh-border);
                 border-radius: 8px;
-                padding: 0.95rem 1rem;
+                padding: 0.75rem 0.85rem;
                 min-width: 0;
                 box-shadow: 0 6px 16px rgba(19, 34, 29, 0.05);
             }}
             .metric-label {{
                 color: var(--mh-muted);
-                font-size: 0.9rem;
+                font-size: 0.82rem;
                 font-weight: 700;
-                margin-bottom: 0.45rem;
+                margin-bottom: 0.28rem;
                 display: flex;
                 align-items: center;
                 gap: 0.45rem;
             }}
             .metric-value {{
                 color: var(--mh-accent);
-                font-size: clamp(1.25rem, 3vw, 1.85rem);
+                font-size: clamp(1.08rem, 2.3vw, 1.55rem);
                 line-height: 1.15;
                 font-weight: 500;
                 white-space: nowrap;
@@ -434,20 +439,77 @@ def configurar_pagina() -> None:
             }}
             .empresa-card {{
                 border: 1px solid var(--mh-border);
-                border-radius: 8px;
+                border-radius: 14px;
                 background: var(--mh-panel);
-                box-shadow: 0 8px 20px rgba(19, 34, 29, 0.05);
-                padding: 0.95rem;
-                min-height: 9rem;
+                box-shadow: 0 14px 28px rgba(19, 34, 29, 0.08);
+                padding: 1rem 1rem 0.9rem;
+                min-height: 10rem;
+                position: relative;
+                overflow: hidden;
+            }}
+            .empresa-card::before {{
+                content: "";
+                position: absolute;
+                inset: 0 auto auto 0;
+                width: 100%;
+                height: 6px;
+                background: linear-gradient(90deg, var(--mh-accent) 0%, var(--mh-accent-alt) 100%);
             }}
             .empresa-card h3 {{
-                margin: 0 0 0.5rem;
-                font-size: 1.15rem;
+                margin: 0 0 0.55rem;
+                font-size: 1.18rem;
             }}
             .empresa-card p {{
                 margin: 0.2rem 0;
                 color: var(--mh-muted);
                 font-size: 0.9rem;
+            }}
+            .empresa-card-topo {{
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 0.75rem;
+                margin-bottom: 0.65rem;
+            }}
+            .empresa-card-badges {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.45rem;
+                margin: 0.7rem 0 0.8rem;
+            }}
+            .empresa-chip {{
+                display: inline-flex;
+                align-items: center;
+                gap: 0.35rem;
+                border-radius: 999px;
+                padding: 0.28rem 0.55rem;
+                font-size: 0.78rem;
+                font-weight: 700;
+                border: 1px solid transparent;
+            }}
+            .empresa-chip.total {{
+                background: rgba(47, 143, 91, 0.10);
+                color: var(--mh-accent);
+                border-color: rgba(47, 143, 91, 0.18);
+            }}
+            .empresa-chip.abertas {{
+                background: rgba(29, 78, 216, 0.08);
+                color: #1d4ed8;
+                border-color: rgba(29, 78, 216, 0.16);
+            }}
+            .empresa-chip.vencidas {{
+                background: rgba(185, 28, 28, 0.09);
+                color: #b91c1c;
+                border-color: rgba(185, 28, 28, 0.16);
+            }}
+            .empresa-chip.info {{
+                background: rgba(124, 140, 90, 0.11);
+                color: var(--mh-accent-alt);
+                border-color: rgba(124, 140, 90, 0.16);
+            }}
+            .dashboard-shell {{
+                max-width: 1180px;
+                margin: 0 auto;
             }}
             .section-panel {{
                 border: 1px solid var(--mh-border);
@@ -455,7 +517,7 @@ def configurar_pagina() -> None:
                 background: var(--mh-panel);
                 box-shadow: 0 8px 20px rgba(19, 34, 29, 0.05);
                 padding: 0.95rem;
-                margin: 0.7rem 0 1rem;
+                margin: 0.55rem 0 0.85rem;
             }}
             .small-muted {{
                 color: var(--mh-muted);
@@ -480,8 +542,27 @@ def configurar_pagina() -> None:
                 background: var(--mh-accent);
                 color: #ffffff;
                 font-weight: 700;
-                min-height: 2.65rem;
+                min-height: 2.2rem;
+                padding: 0.35rem 0.8rem;
                 white-space: normal;
+            }}
+            [class*="st-key-ordenar_contas_"] button,
+            [class*="st-key-contas_acao_"] button,
+            [class*="st-key-baixar_excel_contas"] button {{
+                border-color: var(--mh-border) !important;
+                background: var(--mh-panel-soft) !important;
+                color: var(--mh-text) !important;
+                box-shadow: none !important;
+                font-weight: 700;
+                min-height: 1.9rem !important;
+                padding: 0.22rem 0.55rem !important;
+            }}
+            [class*="st-key-ordenar_contas_"] button:hover,
+            [class*="st-key-contas_acao_"] button:hover,
+            [class*="st-key-baixar_excel_contas"] button:hover {{
+                border-color: var(--mh-accent-alt) !important;
+                background: rgba(36, 107, 71, 0.08) !important;
+                color: var(--mh-accent) !important;
             }}
             div.stButton > button:hover,
             div.stDownloadButton > button:hover,
@@ -523,16 +604,16 @@ def configurar_pagina() -> None:
                 .portal-header {{
                     align-items: flex-start;
                     flex-direction: column;
-                    gap: 0.8rem;
-                    padding: 0.9rem;
+                    gap: 0.65rem;
+                    padding: 0.78rem 0.85rem;
                 }}
                 .portal-brand {{
                     align-items: flex-start;
                     flex-direction: column;
-                    gap: 0.55rem;
+                    gap: 0.45rem;
                 }}
                 .portal-logo {{
-                    width: 112px;
+                    width: 100px;
                 }}
                 .portal-meta {{
                     justify-content: flex-start;
@@ -541,14 +622,14 @@ def configurar_pagina() -> None:
                 }}
                 .meta-pill {{
                     flex: 1 1 100%;
-                    padding: 0.5rem 0.65rem;
+                    padding: 0.42rem 0.6rem;
                 }}
                 .portal-title {{
-                    font-size: 1.32rem;
+                    font-size: 1.2rem;
                     line-height: 1.2;
                 }}
                 .portal-subtitle {{
-                    font-size: 0.9rem;
+                    font-size: 0.86rem;
                 }}
                 .login-logo img {{
                     width: 118px;
@@ -561,7 +642,7 @@ def configurar_pagina() -> None:
                 }}
                 .empresa-card {{
                     min-height: 0;
-                    padding: 0.9rem;
+                    padding: 0.9rem 0.9rem 0.8rem;
                     margin-top: 0.2rem;
                 }}
                 .empresa-card h3 {{
@@ -580,26 +661,32 @@ def configurar_pagina() -> None:
                     font-size: 1.15rem;
                 }}
                 .metric-grid {{
-                    gap: 0.75rem;
+                    gap: 0.55rem;
                 }}
                 .metric-row.top,
                 .metric-row.bottom {{
                     grid-template-columns: 1fr;
                 }}
                 .metric-card {{
-                    padding: 0.85rem 0.95rem;
+                    padding: 0.72rem 0.82rem;
                 }}
                 .metric-label {{
-                    font-size: 0.82rem;
+                    font-size: 0.8rem;
                 }}
                 .metric-value {{
-                    font-size: clamp(1.1rem, 5.2vw, 1.55rem);
+                    font-size: clamp(1rem, 5vw, 1.35rem);
                 }}
                 div.stButton > button,
                 div.stDownloadButton > button,
                 div.stFormSubmitButton > button {{
-                    min-height: 3rem;
-                    font-size: 0.95rem;
+                    min-height: 2.45rem;
+                    font-size: 0.92rem;
+                }}
+                [class*="st-key-ordenar_contas_"] button,
+                [class*="st-key-contas_acao_"] button,
+                [class*="st-key-baixar_excel_contas"] button {{
+                    min-height: 1.85rem !important;
+                    padding: 0.2rem 0.5rem !important;
                 }}
                 [data-testid="stDataFrame"] {{
                     overflow-x: auto;
@@ -1392,6 +1479,48 @@ def formatar_data_br(valor: object) -> str:
     if pd.isna(data):
         return ""
     return data.strftime("%d/%m/%Y")
+
+
+def campo_data_ptbr(
+    container,
+    label: str,
+    value: date | datetime | None = None,
+    key: str | None = None,
+    placeholder: str = "dd/mm/aaaa",
+):
+    """Renderiza um seletor de data com calendario em pt-BR.
+
+    Usa RSuite quando disponivel e cai para o widget nativo do Streamlit
+    apenas como contingencia local.
+    """
+    valor_inicial = value
+    if isinstance(valor_inicial, datetime):
+        valor_inicial = valor_inicial.date()
+
+    with container:
+        if rsuite_date_picker is not None:
+            return rsuite_date_picker(
+                label=label,
+                value=valor_inicial,
+                format="dd/MM/yyyy",
+                placeholder=placeholder,
+                placement="bottomStart",
+                one_tap=False,
+                disabled=False,
+                cleanable=True,
+                block=True,
+                iso_week=False,
+                show_week_numbers=False,
+                locale="pt_BR",
+                key=key,
+            )
+
+        return st.date_input(
+            label,
+            value=valor_inicial or datetime.now().date(),
+            format="DD/MM/YYYY",
+            key=key,
+        )
 
 
 def agora_br() -> str:
@@ -2329,39 +2458,55 @@ def dashboard_empresas(config: dict, df: pd.DataFrame) -> None:
     st.sidebar.text_input("Usuario", value=usuario, disabled=True)
     st.sidebar.button("Sair", use_container_width=True, on_click=logout)
 
-    st.title("Dashboard por empresa")
-    st.caption("Escolha uma empresa para abrir as contas a pagar e os indicadores dela.")
+    left, center, right = st.columns([0.8, 10.4, 0.8], gap="small")
+    with center:
+        st.title("Dashboard por empresa")
+        st.caption("Escolha uma empresa para abrir as contas a pagar e os indicadores dela.")
 
-    cols = st.columns(2, gap="medium")
-    for indice, empresa in enumerate(empresas):
-        contas_empresa = df.loc[
-            (df["empresa"] == empresa)
-            & (df["tipo"] == "conta_a_pagar")
-            & df["status"].astype(str).str.lower().isin(["aberto", "pendente", "vencido"])
-            & df["ativo"]
-        ]
-        total = contas_empresa["valor"].sum()
-        vencidas = int(contas_empresa.apply(conta_vencida, axis=1).sum())
+        cols = st.columns(2, gap="large")
+        for indice, empresa in enumerate(empresas):
+            contas_empresa = df.loc[
+                (df["empresa"] == empresa)
+                & (df["tipo"] == "conta_a_pagar")
+                & df["status"].astype(str).str.lower().isin(["aberto", "pendente", "vencido"])
+                & df["ativo"]
+            ]
+            total = contas_empresa["valor"].sum()
+            abertas = int(len(contas_empresa))
+            vencidas = int(contas_empresa.apply(conta_vencida, axis=1).sum())
+            vence_hoje = int((contas_empresa["vencimento_dt"].dt.date == datetime.now().date()).sum())
+            status_classe = "vencidas" if vencidas else ("abertas" if abertas else "info")
+            status_texto = "Prioridade alta" if vencidas else ("Em acompanhamento" if abertas else "Sem pendências")
 
-        with cols[indice % 2]:
-            st.markdown(
-                f"""
-                <div class="empresa-card">
-                    <h3>{escape(empresa)}</h3>
-                    <p>Total em aberto: <strong>{escape(formatar_moeda_br(total))}</strong></p>
-                    <p>Contas abertas: <strong>{len(contas_empresa)}</strong></p>
-                    <p>Vencidas: <strong>{vencidas}</strong></p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            st.button(
-                f"Abrir {empresa}",
-                key=f"abrir_empresa_{empresa}",
-                use_container_width=True,
-                on_click=selecionar_empresa,
-                args=(empresa, config),
-            )
+            with cols[indice % 2]:
+                st.markdown(
+                    f"""
+                    <div class="empresa-card">
+                        <div class="empresa-card-topo">
+                            <div>
+                                <h3>{escape(empresa)}</h3>
+                                <div style="color: var(--mh-muted); font-size: 0.86rem;">Painel operacional da empresa</div>
+                            </div>
+                            <div class="empresa-chip {status_classe}">{"🔴" if vencidas else ("🟢" if abertas else "ℹ️")} {escape(status_texto)}</div>
+                        </div>
+                        <div class="empresa-card-badges">
+                            <span class="empresa-chip total">💰 {escape(formatar_moeda_br(total))}</span>
+                            <span class="empresa-chip abertas">📄 {abertas} contas</span>
+                            <span class="empresa-chip vencidas">⏰ {vencidas} vencidas</span>
+                            <span class="empresa-chip info">📅 {vence_hoje} vence hoje</span>
+                        </div>
+                        <p>Abra a empresa para acompanhar pagamentos, editar contas e registrar baixas.</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.button(
+                    f"Abrir {empresa}",
+                    key=f"abrir_empresa_{empresa}",
+                    use_container_width=True,
+                    on_click=selecionar_empresa,
+                    args=(empresa, config),
+                )
 
 
 def status_geral_contas(df: pd.DataFrame) -> tuple[str, str]:
@@ -2564,7 +2709,7 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
         return
 
     contas = ordenar_contas_exibidas(contas_exibidas)
-    larguras = [1.35, 2.4, 2.25, 1.25, 1, 1.35, 1.45]
+    larguras = [1.2, 2.25, 2.1, 1.15, 0.95, 1.2, 0.95]
     cabecalho = st.columns(larguras)
     for col, campo in zip(cabecalho[:6], ORDENACOES_CONTAS.keys()):
         col.button(
@@ -2573,6 +2718,7 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
             on_click=selecionar_ordenacao_contas,
             args=(campo,),
             use_container_width=True,
+            type="secondary",
         )
     cabecalho[6].caption("Ações")
 
@@ -2586,14 +2732,14 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
         escrever_celula_conta(cols[3], formatar_moeda_br(float(linha.get("valor", 0) or 0)), nivel, nowrap=True)
         escrever_celula_conta(cols[4], "vencido" if nivel == "vencida" else str(linha.get("status", "")), nivel, nowrap=True, indicador=indicador)
         escrever_celula_conta(cols[5], str(linha.get("documento", "")), nivel)
-        acao_cols = cols[6].columns(4)
-        if acao_cols[0].button("✏️", key=f"editar_{indice}", help="Editar conta"):
+        acao_cols = cols[6].columns([1, 1, 1, 1], gap="small")
+        if acao_cols[0].button("✏️", key=f"contas_acao_editar_{indice}", help="Editar conta", type="secondary"):
             selecionar_conta_para_edicao(indice)
             st.rerun()
-        if acao_cols[1].button("📋", key=f"duplicar_{indice}", help="Duplicar conta"):
+        if acao_cols[1].button("📋", key=f"contas_acao_duplicar_{indice}", help="Duplicar conta", type="secondary"):
             selecionar_conta_para_duplicacao(indice)
             st.rerun()
-        if acao_cols[2].button("✅", key=f"pagar_{indice}", help="Marcar como pago"):
+        if acao_cols[2].button("✅", key=f"contas_acao_pagar_{indice}", help="Marcar como pago", type="secondary"):
             try:
                 df_atualizado = marcar_conta_como_paga(df_base, indice, usuario)
                 if salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa) is None:
@@ -2602,7 +2748,7 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
                 st.rerun()
             except ValueError as erro:
                 st.error(str(erro))
-        if acao_cols[3].button("🗑️", key=f"excluir_{indice}", help="Excluir conta"):
+        if acao_cols[3].button("🗑️", key=f"contas_acao_excluir_{indice}", help="Excluir conta", type="secondary"):
             try:
                 df_atualizado = excluir_conta_a_pagar(df_base, indice, usuario)
                 if salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa) is None:
@@ -2892,7 +3038,7 @@ def formulario_inclusao(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
     with st.form("form_conta_a_pagar", clear_on_submit=True):
         c3, c4, c5 = st.columns([1, 1, 1])
-        vencimento = c3.date_input("Vencimento", format="DD/MM/YYYY")
+        vencimento = campo_data_ptbr(c3, "Vencimento", value=datetime.now().date(), key="form_conta_a_pagar_vencimento")
         valor_texto = c4.text_input("Valor", placeholder="Ex.: 1.000,00")
         status = c5.selectbox("Status", ["aberto", "pendente", "vencido"])
 
@@ -3035,7 +3181,12 @@ def formulario_edicao_conta(df: pd.DataFrame, indice: int, empresa: str, usuario
         fornecedor = c2.text_input("Fornecedor", value=str(linha.get("fornecedor_cliente", "")))
 
         c3, c4, c5 = st.columns([1, 1, 1])
-        vencimento = c3.date_input("Vencimento", value=vencimento_atual.date(), format="DD/MM/YYYY")
+        vencimento = campo_data_ptbr(
+            c3,
+            "Vencimento",
+            value=vencimento_atual.date(),
+            key=f"{key_prefix}_vencimento",
+        )
         valor_texto = c4.text_input(
             "Valor",
             value=formatar_moeda_br(float(linha.get("valor", 0) or 0)).replace("R$ ", ""),
@@ -3154,9 +3305,11 @@ def formulario_duplicacao_conta(df: pd.DataFrame, indice: int, empresa: str, usu
         fornecedor = c2.text_input("Fornecedor", value=str(linha.get("fornecedor_cliente", "")))
 
         c3, c4, c5 = st.columns([1, 1, 1])
-        vencimento_texto = c3.text_input(
+        vencimento = campo_data_ptbr(
+            c3,
             "Data do tributo",
-            value="",
+            value=None,
+            key=f"{key_prefix}_data_tributo",
             placeholder=vencimento_atual.strftime("%d/%m/%Y"),
         )
         valor_texto = c4.text_input("Valor do tributo", value="", placeholder="Ex.: 1.000,00")
@@ -3192,7 +3345,6 @@ def formulario_duplicacao_conta(df: pd.DataFrame, indice: int, empresa: str, usu
 
     tipo_conta = resolver_opcao_digitavel(tipo_conta_sel, tipo_conta_novo)
     _, tipo_nome = obter_tipo_conta(tipo_conta)
-    vencimento = parse_data_br(vencimento_texto)
     valor = parse_valor_br(valor_texto)
     if vencimento is None or valor is None or valor <= 0:
         st.error("Informe uma data de tributo valida e um valor maior que zero antes de salvar a duplicacao.")
@@ -3324,9 +3476,6 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     st.subheader("Painel de pagamentos")
     st.caption("Visao para acompanhar o que precisa ser pago por vencimento.")
 
-    if resumo_base.get("status") in {"ausente", "vazia", "erro"}:
-        exibir_alerta_base_operacional(resumo_base)
-
     renderizar_metricas_em_duas_linhas(
         [
             {"label": "Total a pagar", "value": formatar_moeda_br(total_aberto), "tone": "neutral", "emoji": "💼"},
@@ -3347,17 +3496,19 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     if not len(contas):
         if resumo_base.get("status") == "ok":
             st.success("Nenhuma conta a pagar em aberto para esta empresa.")
-        elif resumo_base.get("status") == "vazia":
-            st.warning("A base operacional esta vazia. Se isso nao era esperado, restaure um backup antes de registrar novas contas.")
 
-    st.markdown("### Contas para pagar")
-    st.download_button(
-        "Baixar contas em Excel",
-        data=gerar_excel_contas_download(contas, empresa),
-        file_name=f"contas_a_pagar_{slug_empresa(empresa)}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True,
-    )
+    cabecalho_contas, acao_excel = st.columns([5.4, 1.15], gap="small")
+    with cabecalho_contas:
+        st.markdown("### Contas para pagar")
+    with acao_excel:
+        st.download_button(
+            "📥 Excel",
+            data=gerar_excel_contas_download(contas, empresa),
+            file_name=f"contas_a_pagar_{slug_empresa(empresa)}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="baixar_excel_contas",
+            use_container_width=False,
+        )
 
     if contas.empty:
         if resumo_base.get("status") == "ok":
@@ -3401,6 +3552,14 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
             formulario_duplicacao_conta(df, indice_duplicacao, empresa, usuario, "area_duplicacao")
 
     renderizar_salvamento_pendente()
+
+    if resumo_base.get("status") in {"ausente", "vazia", "erro"}:
+        st.divider()
+        exibir_alerta_base_operacional(resumo_base)
+        if resumo_base.get("status") == "vazia":
+            st.warning(
+                "A base operacional esta vazia. Se isso nao era esperado, restaure um backup antes de registrar novas contas."
+            )
 
 def main() -> None:
     configurar_pagina()
