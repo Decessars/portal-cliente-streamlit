@@ -268,11 +268,14 @@ def configurar_pagina() -> None:
             }}
             .portal-title {{
                 margin: 0;
-                font-size: 1.52rem;
-                line-height: 1.1;
+                font-size: clamp(1.12rem, 1.65vw, 1.52rem);
+                line-height: 1.15;
                 color: var(--mh-text);
                 font-weight: 800;
                 letter-spacing: 0;
+                word-break: normal;
+                overflow-wrap: normal;
+                hyphens: none;
             }}
             .portal-subtitle {{
                 margin: 0.25rem 0 0;
@@ -284,7 +287,7 @@ def configurar_pagina() -> None:
                 flex-wrap: wrap;
                 justify-content: flex-end;
                 gap: 0.45rem;
-                min-width: 16rem;
+                min-width: 0;
             }}
             .meta-pill {{
                 border: 1px solid var(--mh-border);
@@ -398,33 +401,34 @@ def configurar_pagina() -> None:
                 font-size: 0.85rem;
                 font-weight: 800;
             }}
-            .login-logo {{
-                display: flex;
-                justify-content: center;
-                margin-bottom: 0.75rem;
-            }}
+    .login-logo {{
+        display: flex;
+        justify-content: center;
+        margin-bottom: 0.45rem;
+    }}
             .login-logo img {{
-                width: 150px;
+                width: 128px;
                 max-width: 100%;
                 height: auto;
                 object-fit: contain;
                 display: block;
             }}
-            .login-panel {{
-                border: 1px solid var(--mh-border);
-                border-radius: 8px;
-                background: var(--mh-panel);
-                box-shadow: 0 10px 28px rgba(19, 34, 29, 0.08);
-                padding: 1.2rem;
-                text-align: center;
-            }}
+    .login-panel {{
+        border: 1px solid var(--mh-border);
+        border-radius: 10px;
+        background: var(--mh-panel);
+        box-shadow: 0 14px 30px rgba(19, 34, 29, 0.08);
+        padding: 0.9rem 1rem;
+        text-align: center;
+    }}
             .login-panel h2 {{
-                margin: 0 0 0.35rem;
-                font-size: 1.42rem;
+                margin: 0 0 0.22rem;
+                font-size: 1.28rem;
             }}
             .login-panel p {{
                 color: var(--mh-muted);
-                margin: 0.25rem 0;
+                margin: 0.18rem 0;
+                line-height: 1.35;
             }}
             .login-badge {{
                 display: inline-flex;
@@ -519,6 +523,94 @@ def configurar_pagina() -> None:
                 padding: 0.95rem;
                 margin: 0.55rem 0 0.85rem;
             }}
+            .conta-card {{
+                border: 1px solid var(--mh-border);
+                border-radius: 10px;
+                background: var(--mh-panel);
+                box-shadow: 0 8px 18px rgba(19, 34, 29, 0.05);
+                padding: 0.85rem 0.9rem;
+                margin-bottom: 0.7rem;
+            }}
+            .conta-card-topo {{
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 0.75rem;
+                margin-bottom: 0.7rem;
+            }}
+            .conta-card-documento {{
+                color: var(--mh-text);
+                font-size: 0.98rem;
+                font-weight: 800;
+                word-break: normal;
+                overflow-wrap: anywhere;
+            }}
+            .conta-card-status {{
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 999px;
+                padding: 0.28rem 0.55rem;
+                font-size: 0.75rem;
+                font-weight: 800;
+                white-space: nowrap;
+                border: 1px solid transparent;
+            }}
+            .conta-status-vencida {{
+                background: rgba(220, 38, 38, 0.10);
+                color: var(--mh-danger);
+                border-color: rgba(220, 38, 38, 0.22);
+            }}
+            .conta-status-atencao {{
+                background: rgba(183, 121, 31, 0.12);
+                color: var(--mh-warning);
+                border-color: rgba(183, 121, 31, 0.24);
+            }}
+            .conta-status-ok {{
+                background: rgba(21, 128, 61, 0.10);
+                color: var(--mh-ok);
+                border-color: rgba(21, 128, 61, 0.24);
+            }}
+            .conta-status-neutra {{
+                background: rgba(95, 109, 103, 0.10);
+                color: var(--mh-text);
+                border-color: rgba(95, 109, 103, 0.18);
+            }}
+            .conta-card-grid {{
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0.6rem 0.85rem;
+            }}
+            .conta-card-item {{
+                min-width: 0;
+            }}
+            .conta-card-label {{
+                display: block;
+                margin-bottom: 0.22rem;
+                color: var(--mh-muted);
+                font-size: 0.74rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.02em;
+            }}
+            .conta-card-value {{
+                color: var(--mh-text);
+                font-size: 0.92rem;
+                line-height: 1.25;
+                word-break: normal;
+                overflow-wrap: anywhere;
+            }}
+            .conta-card-valor {{
+                color: var(--mh-accent);
+                font-weight: 800;
+            }}
+            [class*="st-key-contas_card_"] button {{
+                min-height: 2rem !important;
+                min-width: 2rem !important;
+                padding: 0.2rem 0.3rem !important;
+                font-size: 0.95rem !important;
+                line-height: 1 !important;
+            }}
             .small-muted {{
                 color: var(--mh-muted);
                 font-size: 0.9rem;
@@ -544,7 +636,9 @@ def configurar_pagina() -> None:
                 font-weight: 700;
                 min-height: 2.2rem;
                 padding: 0.35rem 0.8rem;
-                white-space: normal;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }}
             [class*="st-key-ordenar_contas_"] button,
             [class*="st-key-contas_acao_"] button,
@@ -555,7 +649,10 @@ def configurar_pagina() -> None:
                 box-shadow: none !important;
                 font-weight: 700;
                 min-height: 1.9rem !important;
-                padding: 0.22rem 0.55rem !important;
+                padding: 0.18rem 0.55rem !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
             }}
             [class*="st-key-ordenar_contas_"] button:hover,
             [class*="st-key-contas_acao_"] button:hover,
@@ -579,6 +676,9 @@ def configurar_pagina() -> None:
             h1, h2, h3 {{
                 color: var(--mh-text);
                 letter-spacing: 0;
+                word-break: normal;
+                overflow-wrap: normal;
+                hyphens: none;
             }}
             hr {{
                 border-color: var(--mh-border);
@@ -625,20 +725,20 @@ def configurar_pagina() -> None:
                     padding: 0.42rem 0.6rem;
                 }}
                 .portal-title {{
-                    font-size: 1.2rem;
+                    font-size: 1.12rem;
                     line-height: 1.2;
                 }}
                 .portal-subtitle {{
                     font-size: 0.86rem;
                 }}
                 .login-logo img {{
-                    width: 118px;
+                    width: 96px;
                 }}
                 .login-panel {{
-                    padding: 0.95rem;
+                    padding: 0.72rem 0.8rem;
                 }}
                 .login-panel h2 {{
-                    font-size: 1.18rem;
+                    font-size: 1.02rem;
                 }}
                 .empresa-card {{
                     min-height: 0;
@@ -667,6 +767,9 @@ def configurar_pagina() -> None:
                 .metric-row.bottom {{
                     grid-template-columns: 1fr;
                 }}
+                .conta-card-grid {{
+                    grid-template-columns: 1fr;
+                }}
                 .metric-card {{
                     padding: 0.72rem 0.82rem;
                 }}
@@ -688,6 +791,11 @@ def configurar_pagina() -> None:
                     min-height: 1.85rem !important;
                     padding: 0.2rem 0.5rem !important;
                 }}
+                [class*="st-key-contas_card_"] button {{
+                    min-height: 1.9rem !important;
+                    min-width: 1.9rem !important;
+                    padding: 0.18rem 0.28rem !important;
+                }}
                 [data-testid="stDataFrame"] {{
                     overflow-x: auto;
                 }}
@@ -700,6 +808,33 @@ def configurar_pagina() -> None:
                 }}
                 h3 {{
                     font-size: 1.12rem;
+                }}
+            }}
+            @media (max-width: 1200px) {{
+                .portal-header {{
+                    align-items: flex-start;
+                    flex-direction: column;
+                    gap: 0.65rem;
+                }}
+                .portal-brand {{
+                    width: 100%;
+                    align-items: flex-start;
+                    flex-wrap: wrap;
+                    gap: 0.6rem;
+                }}
+                .portal-meta {{
+                    width: 100%;
+                    justify-content: flex-start;
+                }}
+                .metric-row.top,
+                .metric-row.bottom {{
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }}
+            }}
+            @media (max-width: 900px) {{
+                .metric-row.top,
+                .metric-row.bottom {{
+                    grid-template-columns: 1fr;
                 }}
             }}
         </style>
@@ -2085,6 +2220,7 @@ def inicializar_sessao() -> None:
     st.session_state.setdefault("usuario_logado", "")
     st.session_state.setdefault("empresa_logada", "")
     st.session_state.setdefault("modulo_atual", "contas_a_pagar")
+    st.session_state.setdefault("contas_visualizacao_modo", "Tabela")
     st.session_state.setdefault("exibir_troca_senha_padrao", False)
     st.session_state.setdefault("senha_padrao_mantida", False)
     st.session_state.setdefault("exibir_troca_senha_manual", False)
@@ -2321,7 +2457,7 @@ def tela_login(config: dict) -> None:
     )
 
     st.write("")
-    col_esquerda, col_direita = st.columns([1.0, 1.15], gap="large")
+    col_vazio_esq, col_esquerda, col_direita, col_vazio_dir = st.columns([0.65, 2.35, 2.35, 0.65], gap="small")
 
     with col_esquerda:
         st.markdown(
@@ -2338,7 +2474,6 @@ def tela_login(config: dict) -> None:
         )
 
     with col_direita:
-        st.write("")
         with st.container(border=True):
             st.subheader("Entrar no portal")
             st.caption("Informe seus dados para continuar.")
@@ -2709,7 +2844,7 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
         return
 
     contas = ordenar_contas_exibidas(contas_exibidas)
-    larguras = [1.2, 2.25, 2.1, 1.15, 0.95, 1.2, 0.95]
+    larguras = [1.2, 2.2, 2.05, 1.1, 0.9, 1.15, 1.2]
     cabecalho = st.columns(larguras)
     for col, campo in zip(cabecalho[:6], ORDENACOES_CONTAS.keys()):
         col.button(
@@ -2733,13 +2868,13 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
         escrever_celula_conta(cols[4], "vencido" if nivel == "vencida" else str(linha.get("status", "")), nivel, nowrap=True, indicador=indicador)
         escrever_celula_conta(cols[5], str(linha.get("documento", "")), nivel)
         acao_cols = cols[6].columns([1, 1, 1, 1], gap="small")
-        if acao_cols[0].button("✏️", key=f"contas_acao_editar_{indice}", help="Editar conta", type="secondary"):
+        if acao_cols[0].button("✏️", key=f"contas_acao_editar_{indice}", help="Editar conta", type="secondary", use_container_width=True):
             selecionar_conta_para_edicao(indice)
             st.rerun()
-        if acao_cols[1].button("📋", key=f"contas_acao_duplicar_{indice}", help="Duplicar conta", type="secondary"):
+        if acao_cols[1].button("📋", key=f"contas_acao_duplicar_{indice}", help="Duplicar conta", type="secondary", use_container_width=True):
             selecionar_conta_para_duplicacao(indice)
             st.rerun()
-        if acao_cols[2].button("✅", key=f"contas_acao_pagar_{indice}", help="Marcar como pago", type="secondary"):
+        if acao_cols[2].button("✅", key=f"contas_acao_pagar_{indice}", help="Marcar como pago", type="secondary", use_container_width=True):
             try:
                 df_atualizado = marcar_conta_como_paga(df_base, indice, usuario)
                 if salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa) is None:
@@ -2748,7 +2883,7 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
                 st.rerun()
             except ValueError as erro:
                 st.error(str(erro))
-        if acao_cols[3].button("🗑️", key=f"contas_acao_excluir_{indice}", help="Excluir conta", type="secondary"):
+        if acao_cols[3].button("🗑️", key=f"contas_acao_excluir_{indice}", help="Excluir conta", type="secondary", use_container_width=True):
             try:
                 df_atualizado = excluir_conta_a_pagar(df_base, indice, usuario)
                 if salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa) is None:
@@ -2757,6 +2892,119 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
                 st.rerun()
             except ValueError as erro:
                 st.error(str(erro))
+
+
+def _renderizar_acoes_conta(
+    container: object,
+    indice: int,
+    df_base: pd.DataFrame,
+    empresa: str,
+    usuario: str,
+    prefixo: str,
+) -> None:
+    botoes = container.columns([1, 1, 1, 1], gap="small")
+    if botoes[0].button("✏️", key=f"{prefixo}_editar_{indice}", help="Editar conta", type="secondary", use_container_width=True):
+        selecionar_conta_para_edicao(indice)
+        st.rerun()
+    if botoes[1].button("📋", key=f"{prefixo}_duplicar_{indice}", help="Duplicar conta", type="secondary", use_container_width=True):
+        selecionar_conta_para_duplicacao(indice)
+        st.rerun()
+    if botoes[2].button("✅", key=f"{prefixo}_pagar_{indice}", help="Marcar como pago", type="secondary", use_container_width=True):
+        try:
+            df_atualizado = marcar_conta_como_paga(df_base, indice, usuario)
+            if salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa) is None:
+                return
+            st.success("Conta marcada como paga.")
+            st.rerun()
+        except ValueError as erro:
+            st.error(str(erro))
+    if botoes[3].button("🗑️", key=f"{prefixo}_excluir_{indice}", help="Excluir conta", type="secondary", use_container_width=True):
+        try:
+            df_atualizado = excluir_conta_a_pagar(df_base, indice, usuario)
+            if salvar_dados_empresa(normalizar_dataframe(df_atualizado), empresa) is None:
+                return
+            st.success("Conta excluída da lista ativa.")
+            st.rerun()
+        except ValueError as erro:
+            st.error(str(erro))
+
+
+def exibir_contas_em_cards(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame, empresa: str, usuario: str) -> None:
+    if contas_exibidas.empty:
+        st.info("Nenhum registro encontrado para este filtro.")
+        return
+
+    controles = st.columns([1.8, 1.15, 1.15], gap="small")
+    opcoes_ordenacao = list(ORDENACOES_CONTAS.keys())
+    indice_atual = opcoes_ordenacao.index(st.session_state.get("contas_ordem_campo", "vencimento")) if st.session_state.get("contas_ordem_campo", "vencimento") in opcoes_ordenacao else 0
+    campo = controles[0].selectbox(
+        "Ordenar por",
+        opcoes_ordenacao,
+        index=indice_atual,
+        format_func=lambda chave: ORDENACOES_CONTAS[chave]["label"],
+        key="contas_cards_ordenar_por",
+        label_visibility="visible",
+    )
+    direcao = controles[1].selectbox(
+        "Direção",
+        ["Decrescente", "Crescente"],
+        index=0 if not bool(st.session_state.get("contas_ordem_crescente", True)) else 1,
+        key="contas_cards_direcao",
+        label_visibility="visible",
+    )
+    controles[2].caption("Use Cards em telas estreitas.")
+
+    st.session_state.contas_ordem_campo = campo
+    st.session_state.contas_ordem_crescente = direcao == "Crescente"
+
+    contas = ordenar_contas_exibidas(contas_exibidas)
+    grade = st.columns(2, gap="small")
+    for posicao, (indice, linha) in enumerate(contas.iterrows()):
+        nivel = nivel_prazo_conta(linha)
+        indicador = indicador_prazo_conta(linha)
+        alvo = grade[posicao % 2]
+        with alvo:
+            st.markdown(
+                f"""
+                <div class="conta-card">
+                    <div class="conta-card-topo">
+                        <div>
+                            <div class="conta-card-label">Documento</div>
+                            <div class="conta-card-documento">{escape(str(linha.get("documento", "")))}</div>
+                        </div>
+                        <div class="conta-card-status conta-status-{escape(nivel)}">{escape(str(linha.get("status", "")) if nivel != "vencida" else "vencido")}</div>
+                    </div>
+                    <div class="conta-card-grid">
+                        <div class="conta-card-item">
+                            <span class="conta-card-label">Vencimento</span>
+                            <span class="conta-card-value">{escape(formatar_data_br(linha.get("vencimento")))}</span>
+                        </div>
+                        <div class="conta-card-item">
+                            <span class="conta-card-label">Descrição</span>
+                            <span class="conta-card-value">{escape(str(linha.get("descricao", "")))}</span>
+                        </div>
+                        <div class="conta-card-item">
+                            <span class="conta-card-label">Fornecedor</span>
+                            <span class="conta-card-value">{escape(str(linha.get("fornecedor_cliente", "")))}</span>
+                        </div>
+                        <div class="conta-card-item">
+                            <span class="conta-card-label">Valor</span>
+                            <span class="conta-card-value conta-card-valor">{escape(formatar_moeda_br(float(linha.get("valor", 0) or 0)))}</span>
+                        </div>
+                        <div class="conta-card-item">
+                            <span class="conta-card-label">Status</span>
+                            <span class="conta-card-value">{escape("vencido" if nivel == "vencida" else str(linha.get("status", "")))}</span>
+                        </div>
+                        <div class="conta-card-item">
+                            <span class="conta-card-label">Indicador</span>
+                            <span class="conta-card-value">{escape(indicador)}</span>
+                        </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            _renderizar_acoes_conta(st, indice, df_base, empresa, usuario, "contas_card")
 
 
 def limpar_nome_arquivo(nome: str) -> str:
@@ -3497,24 +3745,34 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         if resumo_base.get("status") == "ok":
             st.success("Nenhuma conta a pagar em aberto para esta empresa.")
 
-    cabecalho_contas, acao_excel = st.columns([5.4, 1.15], gap="small")
+    cabecalho_contas, acao_excel, visibilidade = st.columns([4.9, 1.15, 1.35], gap="small")
     with cabecalho_contas:
         st.markdown("### Contas para pagar")
     with acao_excel:
         st.download_button(
-            "📥 Excel",
+            "?? Excel",
             data=gerar_excel_contas_download(contas, empresa),
             file_name=f"contas_a_pagar_{slug_empresa(empresa)}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="baixar_excel_contas",
             use_container_width=False,
         )
+    with visibilidade:
+        st.selectbox(
+            "Visualiza??o",
+            ["Tabela", "Cards"],
+            key="contas_visualizacao_modo",
+            label_visibility="visible",
+        )
 
     if contas.empty:
         if resumo_base.get("status") == "ok":
             st.info("Nenhum registro encontrado para este filtro.")
     else:
-        exibir_contas_com_acoes(contas, df, empresa, usuario)
+        if st.session_state.get("contas_visualizacao_modo", "Tabela") == "Cards":
+            exibir_contas_em_cards(contas, df, empresa, usuario)
+        else:
+            exibir_contas_com_acoes(contas, df, empresa, usuario)
 
     indice_edicao = st.session_state.get("conta_edicao_indice")
     if indice_edicao is not None:
