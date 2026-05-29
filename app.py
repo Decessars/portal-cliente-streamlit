@@ -824,12 +824,28 @@ def planilha_google() -> object:
     return cliente.open_by_key(str(configuracao["spreadsheet_id"]))
 
 
+def google_sheets_operacional_disponivel(empresa: str | None = None) -> bool:
+    if not usar_google_sheets():
+        return False
+    try:
+        if empresa is None:
+            planilha_google()
+        else:
+            obter_worksheet_empresa(empresa, criar=False)
+        return True
+    except Exception:
+        return False
+
+
 def worksheet_empresa_existe(empresa: str) -> bool:
     if not usar_google_sheets():
         return caminho_dados_empresa(empresa).exists()
-    planilha = planilha_google()
-    nome = nome_aba_empresa(empresa)
-    return any(aba.title == nome for aba in planilha.worksheets())
+    try:
+        planilha = planilha_google()
+        nome = nome_aba_empresa(empresa)
+        return any(aba.title == nome for aba in planilha.worksheets())
+    except Exception:
+        return caminho_dados_empresa(empresa).exists()
 
 
 def obter_worksheet_empresa(empresa: str, criar: bool = False):
@@ -915,55 +931,64 @@ def migrar_csv_local_para_google_sheets(empresa: str) -> pd.DataFrame:
 
 
 def listar_backups_empresa_google(empresa: str) -> list[str]:
-    planilha = planilha_google()
-    prefixo = nome_aba_backup_prefixo(empresa)
-    backups = [aba.title for aba in planilha.worksheets() if aba.title.startswith(prefixo)]
-    return sorted(backups, reverse=True)
+    try:
+        planilha = planilha_google()
+        prefixo = nome_aba_backup_prefixo(empresa)
+        backups = [aba.title for aba in planilha.worksheets() if aba.title.startswith(prefixo)]
+        return sorted(backups, reverse=True)
+    except Exception:
+        return []
 
 
 def criar_backup_empresa_google(empresa: str) -> str | None:
-    aba_origem = obter_worksheet_empresa(empresa, criar=False)
-    if aba_origem is None:
+    try:
+        aba_origem = obter_worksheet_empresa(empresa, criar=False)
+        if aba_origem is None:
+            return None
+
+        valores = aba_origem.get_all_values()
+        if not valores:
+            return None
+
+        planilha = planilha_google()
+        nome_backup = nome_aba_backup(empresa)
+        contador = 1
+        while any(aba.title == nome_backup for aba in planilha.worksheets()):
+            nome_backup = f"{BACKUP_SHEET_PREFIX}{slug_empresa(empresa)}__{datetime.now().strftime('%Y%m%d_%H%M%S')}_{contador}"
+            nome_backup = nome_backup[:SHEETS_MAX_TITLE_LEN]
+            contador += 1
+
+        rows = max(2, len(valores))
+        cols = max(2, len(valores[0]) if valores else len(COLUNAS_DADOS))
+        aba_backup = planilha.add_worksheet(title=nome_backup, rows=rows, cols=cols)
+        aba_backup.update(valores, value_input_option="RAW")
+        return nome_backup
+    except Exception:
         return None
-
-    valores = aba_origem.get_all_values()
-    if not valores:
-        return None
-
-    planilha = planilha_google()
-    nome_backup = nome_aba_backup(empresa)
-    contador = 1
-    while any(aba.title == nome_backup for aba in planilha.worksheets()):
-        nome_backup = f"{BACKUP_SHEET_PREFIX}{slug_empresa(empresa)}__{datetime.now().strftime('%Y%m%d_%H%M%S')}_{contador}"
-        nome_backup = nome_backup[:SHEETS_MAX_TITLE_LEN]
-        contador += 1
-
-    rows = max(2, len(valores))
-    cols = max(2, len(valores[0]) if valores else len(COLUNAS_DADOS))
-    aba_backup = planilha.add_worksheet(title=nome_backup, rows=rows, cols=cols)
-    aba_backup.update(valores, value_input_option="RAW")
-    return nome_backup
 
 
 def restaurar_backup_empresa_google(empresa: str, backup: str | None = None) -> str:
-    planilha = planilha_google()
-    aba_backup_nome = backup or (listar_backups_empresa_google(empresa)[0] if listar_backups_empresa_google(empresa) else "")
-    if not aba_backup_nome:
-        raise ValueError("Nenhum backup encontrado para restauracao.")
+    try:
+        planilha = planilha_google()
+        aba_backup_nome = backup or (listar_backups_empresa_google(empresa)[0] if listar_backups_empresa_google(empresa) else "")
+        if not aba_backup_nome:
+            raise ValueError("Nenhum backup encontrado para restauracao.")
 
-    aba_backup = planilha.worksheet(aba_backup_nome)
-    valores = aba_backup.get_all_values()
-    if not valores:
-        raise ValueError("O backup selecionado esta vazio.")
+        aba_backup = planilha.worksheet(aba_backup_nome)
+        valores = aba_backup.get_all_values()
+        if not valores:
+            raise ValueError("O backup selecionado esta vazio.")
 
-    aba_empresa = obter_worksheet_empresa(empresa, criar=True)
-    aba_empresa.clear()
-    aba_empresa.update(valores, value_input_option="RAW")
-    return aba_empresa.title
+        aba_empresa = obter_worksheet_empresa(empresa, criar=True)
+        aba_empresa.clear()
+        aba_empresa.update(valores, value_input_option="RAW")
+        return aba_empresa.title
+    except Exception as erro:
+        raise ValueError(f"Nao foi possivel restaurar o backup na planilha: {erro}") from erro
 
 
 def identificar_base_operacional(empresa: str) -> str:
-    if usar_google_sheets():
+    if google_sheets_operacional_disponivel(empresa):
         return f"Google Sheets / {nome_aba_empresa(empresa)}"
     return str(caminho_dados_empresa(empresa))
 
@@ -973,7 +998,7 @@ def pasta_backups_empresa(empresa: str) -> Path:
 
 
 def listar_backups_empresa(empresa: str) -> list[Path | str]:
-    if usar_google_sheets():
+    if google_sheets_operacional_disponivel(empresa):
         return listar_backups_empresa_google(empresa)
 
     pasta = pasta_backups_empresa(empresa)
@@ -984,7 +1009,7 @@ def listar_backups_empresa(empresa: str) -> list[Path | str]:
 
 
 def criar_backup_empresa(empresa: str, origem: Path | None = None) -> Path | str | None:
-    if usar_google_sheets():
+    if google_sheets_operacional_disponivel(empresa):
         nome_backup = criar_backup_empresa_google(empresa)
         return nome_backup
 
@@ -1068,9 +1093,12 @@ def base_operacional_suspeita(resumo_atual: dict, df_novo: pd.DataFrame) -> tupl
 
 
 def restaurar_backup_empresa(empresa: str, backup: Path | None = None) -> Path | str:
-    if usar_google_sheets():
+    if google_sheets_operacional_disponivel(empresa):
         backup_nome = str(backup) if backup is not None else None
-        return restaurar_backup_empresa_google(empresa, backup_nome)
+        try:
+            return restaurar_backup_empresa_google(empresa, backup_nome)
+        except Exception:
+            pass
 
     backup = backup or obter_resumo_base_empresa(empresa).get("ultimo_backup")
     if not backup:
@@ -1186,10 +1214,13 @@ def carregar_base_demo() -> pd.DataFrame:
 def carregar_dados_empresa(empresa: str) -> pd.DataFrame:
     """Carrega a base operacional isolada de uma empresa."""
     caminho = caminho_dados_empresa(empresa)
-    if usar_google_sheets():
-        df = ler_df_empresa_google(empresa)
-        if df.empty:
-            df = migrar_csv_local_para_google_sheets(empresa)
+    if google_sheets_operacional_disponivel(empresa):
+        try:
+            df = ler_df_empresa_google(empresa)
+            if df.empty:
+                df = migrar_csv_local_para_google_sheets(empresa)
+        except Exception:
+            df = pd.read_csv(caminho) if caminho.exists() else pd.DataFrame(columns=COLUNAS_DADOS)
     elif caminho.exists():
         df = pd.read_csv(caminho)
     else:
@@ -1248,13 +1279,19 @@ def salvar_dados_empresa(
         )
         return None
 
-    if usar_google_sheets():
-        criar_backup_empresa(empresa)
-        aba = obter_worksheet_empresa(empresa, criar=True)
-        valores = converter_dataframe_para_linhas(dados)
-        aba.clear()
-        aba.update(valores, value_input_option="RAW")
-        caminho_saida: Path | str = identificar_base_operacional(empresa)
+    if google_sheets_operacional_disponivel(empresa):
+        try:
+            criar_backup_empresa(empresa)
+            aba = obter_worksheet_empresa(empresa, criar=True)
+            valores = converter_dataframe_para_linhas(dados)
+            aba.clear()
+            aba.update(valores, value_input_option="RAW")
+            caminho_saida: Path | str = identificar_base_operacional(empresa)
+        except Exception:
+            if caminho.exists():
+                criar_backup_empresa(empresa, caminho)
+            dados.to_csv(caminho, index=False, encoding="utf-8-sig")
+            caminho_saida = caminho
     else:
         if caminho.exists():
             criar_backup_empresa(empresa, caminho)
