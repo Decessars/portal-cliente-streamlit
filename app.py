@@ -2442,11 +2442,9 @@ def filtrar_dados(df: pd.DataFrame, empresa: str) -> pd.DataFrame:
     return remover_linhas_em_branco(df.loc[filtro].copy())
 
 
-def filtrar_contas_a_pagar_abertas(df: pd.DataFrame, empresa: str, incluir_pagas: bool = False) -> pd.DataFrame:
+def filtrar_contas_a_pagar_abertas(df: pd.DataFrame, empresa: str, somente_pagas: bool = False) -> pd.DataFrame:
     dados = filtrar_dados(df, empresa)
-    status_permitidos = ["aberto", "pendente", "vencido"]
-    if incluir_pagas:
-        status_permitidos.append("pago")
+    status_permitidos = ["pago"] if somente_pagas else ["aberto", "pendente", "vencido"]
     status_abertos = dados["status"].astype(str).str.lower().isin(status_permitidos)
     filtro = (dados["tipo"] == "conta_a_pagar") & status_abertos & dados["ativo"]
     return remover_linhas_em_branco(dados.loc[filtro].copy())
@@ -3755,11 +3753,11 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         if resumo_base.get("status") == "ok":
             st.success("Nenhuma conta a pagar em aberto para esta empresa.")
 
-    contas = filtrar_contas_a_pagar_abertas(df, empresa, incluir_pagas=exibir_pagas)
+    contas = filtrar_contas_a_pagar_abertas(df, empresa, somente_pagas=exibir_pagas)
 
     cabecalho_contas, acao_excel, visibilidade, filtro_pagas = st.columns([3.9, 1.15, 1.35, 1.25], gap="small")
     with cabecalho_contas:
-        st.markdown("### Contas para pagar")
+        st.markdown("### Contas pagas" if exibir_pagas else "### Contas para pagar")
     with acao_excel:
         st.download_button(
             "?? Excel",
