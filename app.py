@@ -2221,6 +2221,7 @@ def inicializar_sessao() -> None:
     st.session_state.setdefault("empresa_logada", "")
     st.session_state.setdefault("modulo_atual", "contas_a_pagar")
     st.session_state.setdefault("contas_visualizacao_modo", "Tabela")
+    st.session_state.setdefault("contas_exibir_pagas", False)
     st.session_state.setdefault("exibir_troca_senha_padrao", False)
     st.session_state.setdefault("senha_padrao_mantida", False)
     st.session_state.setdefault("exibir_troca_senha_manual", False)
@@ -2441,9 +2442,12 @@ def filtrar_dados(df: pd.DataFrame, empresa: str) -> pd.DataFrame:
     return remover_linhas_em_branco(df.loc[filtro].copy())
 
 
-def filtrar_contas_a_pagar_abertas(df: pd.DataFrame, empresa: str) -> pd.DataFrame:
+def filtrar_contas_a_pagar_abertas(df: pd.DataFrame, empresa: str, incluir_pagas: bool = False) -> pd.DataFrame:
     dados = filtrar_dados(df, empresa)
-    status_abertos = dados["status"].astype(str).str.lower().isin(["aberto", "pendente", "vencido"])
+    status_permitidos = ["aberto", "pendente", "vencido"]
+    if incluir_pagas:
+        status_permitidos.append("pago")
+    status_abertos = dados["status"].astype(str).str.lower().isin(status_permitidos)
     filtro = (dados["tipo"] == "conta_a_pagar") & status_abertos & dados["ativo"]
     return remover_linhas_em_branco(dados.loc[filtro].copy())
 
@@ -3140,6 +3144,10 @@ def marcar_conta_como_paga(df: pd.DataFrame, indice: int, usuario: str) -> pd.Da
             raise ValueError("Conta selecionada não foi encontrada na base atual.")
         posicao = posicoes[0]
 
+    status_atual = str(df_atualizado.iat[posicao, df_atualizado.columns.get_loc("status")] or "").strip().lower()
+    if status_atual == "pago":
+        raise ValueError("Conta ja esta paga.")
+
     df_atualizado.iat[posicao, df_atualizado.columns.get_loc("status")] = "pago"
     df_atualizado.iat[posicao, df_atualizado.columns.get_loc("pagamento_recebimento")] = datetime.now().strftime("%Y-%m-%d")
     df_atualizado.iat[posicao, df_atualizado.columns.get_loc("observacao")] = (
@@ -3707,18 +3715,20 @@ def area_exclusao(df: pd.DataFrame, contas: pd.DataFrame, empresa: str, usuario:
 
 def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
     resumo_base = obter_resumo_base_empresa(empresa, df)
-    contas = filtrar_contas_a_pagar_abertas(df, empresa)
+    contas_abertas = filtrar_contas_a_pagar_abertas(df, empresa)
+    exibir_pagas = bool(st.session_state.get("contas_exibir_pagas", False))
+    contas = contas_abertas
     hoje = pd.Timestamp(datetime.now().date())
-    total_aberto = contas["valor"].sum()
-    vencidas = contas.loc[contas.apply(conta_vencida, axis=1)]
-    vence_hoje = contas.loc[contas["vencimento_dt"].dt.date == hoje.date()]
-    proximos_7 = contas.loc[
-        (contas["vencimento_dt"] > hoje)
-        & (contas["vencimento_dt"] <= hoje + pd.Timedelta(days=7))
+    total_aberto = contas_abertas["valor"].sum()
+    vencidas = contas_abertas.loc[contas_abertas.apply(conta_vencida, axis=1)]
+    vence_hoje = contas_abertas.loc[contas_abertas["vencimento_dt"].dt.date == hoje.date()]
+    proximos_7 = contas_abertas.loc[
+        (contas_abertas["vencimento_dt"] > hoje)
+        & (contas_abertas["vencimento_dt"] <= hoje + pd.Timedelta(days=7))
     ]
-    abertas_no_prazo = contas.loc[
-        (contas["status"].astype(str).str.lower().isin(["aberto", "pendente"]))
-        & (contas["vencimento_dt"] > hoje + pd.Timedelta(days=7))
+    abertas_no_prazo = contas_abertas.loc[
+        (contas_abertas["status"].astype(str).str.lower().isin(["aberto", "pendente"]))
+        & (contas_abertas["vencimento_dt"] > hoje + pd.Timedelta(days=7))
     ]
 
     st.subheader("Painel de pagamentos")
@@ -3745,7 +3755,9 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
         if resumo_base.get("status") == "ok":
             st.success("Nenhuma conta a pagar em aberto para esta empresa.")
 
-    cabecalho_contas, acao_excel, visibilidade = st.columns([4.9, 1.15, 1.35], gap="small")
+    contas = filtrar_contas_a_pagar_abertas(df, empresa, incluir_pagas=exibir_pagas)
+
+    cabecalho_contas, acao_excel, visibilidade, filtro_pagas = st.columns([3.9, 1.15, 1.35, 1.25], gap="small")
     with cabecalho_contas:
         st.markdown("### Contas para pagar")
     with acao_excel:
@@ -3763,6 +3775,12 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
             ["Tabela", "Cards"],
             key="contas_visualizacao_modo",
             label_visibility="visible",
+        )
+    with filtro_pagas:
+        st.toggle(
+            "Exibir pagas",
+            key="contas_exibir_pagas",
+            help="Mostra tambem as contas ja marcadas como pagas.",
         )
 
     if contas.empty:
