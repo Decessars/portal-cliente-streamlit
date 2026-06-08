@@ -369,7 +369,7 @@ def configurar_pagina() -> None:
                 grid-template-columns: repeat(4, minmax(0, 1fr));
             }}
             .metric-row.bottom {{
-                grid-template-columns: repeat(3, minmax(0, 1fr));
+                grid-template-columns: repeat(4, minmax(0, 1fr));
             }}
             .metric-card {{
                 background: var(--mh-panel);
@@ -425,6 +425,13 @@ def configurar_pagina() -> None:
                 padding: 0.12rem 0.45rem;
                 font-size: 0.85rem;
                 font-weight: 800;
+            }}
+            .metric-detail {{
+                margin-top: 0.32rem;
+                color: var(--mh-muted);
+                font-size: 0.76rem;
+                font-weight: 600;
+                line-height: 1.15;
             }}
     .login-logo {{
         display: flex;
@@ -1006,6 +1013,38 @@ def renderizar_metricas_em_duas_linhas(cards: list[dict[str, object]]) -> None:
             f'<div class="metric-card metric-{escape(tone)}">'
             f'<div class="metric-label"><span>{escape(emoji)}</span><span>{escape(str(card["label"]))}</span></div>'
             f'<div class="metric-value">{escape(str(card["value"]))}</div>'
+            f"{delta_html}"
+            "</div>"
+        )
+
+    topo = cards[:4]
+    base = cards[4:]
+    topo_html = "".join(render_card(card) for card in topo)
+    base_html = "".join(render_card(card) for card in base)
+    st.markdown(
+        f"""
+        <div class="metric-grid">
+            <div class="metric-row top">{topo_html}</div>
+            <div class="metric-row bottom">{base_html}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def renderizar_metricas_faturamento(cards: list[dict[str, object]]) -> None:
+    def render_card(card: dict[str, object]) -> str:
+        delta = card.get("delta")
+        emoji = str(card.get("emoji", ""))
+        tone = str(card.get("tone", "neutral")).strip().lower()
+        detail = str(card.get("detail", "")).strip()
+        delta_html = f'<div class="metric-delta">â†‘ {escape(str(delta))}</div>' if delta is not None else ""
+        detail_html = f'<div class="metric-detail">{escape(detail)}</div>' if detail else ""
+        return (
+            f'<div class="metric-card metric-{escape(tone)}">'
+            f'<div class="metric-label"><span>{escape(emoji)}</span><span>{escape(str(card["label"]))}</span></div>'
+            f'<div class="metric-value">{escape(str(card["value"]))}</div>'
+            f"{detail_html}"
             f"{delta_html}"
             "</div>"
         )
@@ -4208,6 +4247,24 @@ def pagina_faturamento(empresa: str, usuario: str) -> None:
             .agg({"faturamento": "sum", "iss": "sum", "observacao": "first"})
         )
 
+    if mensal_empresa.empty and not clientes_empresa.empty:
+        mensal_empresa = (
+            clientes_empresa.groupby(["empresa", "cnpj_empresa", "competencia"], as_index=False)
+            .agg({"faturamento": "sum", "iss": "sum", "observacao": "first"})
+        )
+
+    if not mensal_empresa.empty:
+        mensal_empresa = (
+            mensal_empresa.groupby(["empresa", "cnpj_empresa", "competencia"], as_index=False)
+            .agg({"faturamento": "sum", "iss": "sum", "observacao": "first"})
+        )
+        mensal_empresa["_ordem"] = mensal_empresa["competencia"].apply(competencia_para_data)
+        mensal_empresa = (
+            mensal_empresa.sort_values("_ordem", ascending=False, na_position="last")
+            .head(12)
+            .drop(columns=["_ordem"], errors="ignore")
+        )
+
     resumo_clientes = resumir_faturamento_clientes(clientes_empresa)
 
     if mensal_empresa.empty and clientes_empresa.empty:
@@ -4219,13 +4276,36 @@ def pagina_faturamento(empresa: str, usuario: str) -> None:
     total_iss = float(mensal_empresa["iss"].sum()) if not mensal_empresa.empty else 0.0
     meses_apurados = int(mensal_empresa["competencia"].nunique()) if not mensal_empresa.empty else 0
     clientes_apurados = int(resumo_clientes[["cliente", "cnpj_cliente"]].drop_duplicates().shape[0]) if not resumo_clientes.empty else 0
+    media_mensal = (total_faturamento / meses_apurados) if meses_apurados else 0.0
+    if not mensal_empresa.empty:
+        ultimo_mes = mensal_empresa.iloc[0]
+        melhor_mes = mensal_empresa.loc[mensal_empresa["faturamento"].idxmax()]
+        pior_mes = mensal_empresa.loc[mensal_empresa["faturamento"].idxmin()]
+    else:
+        ultimo_mes = melhor_mes = pior_mes = None
 
-    renderizar_metricas(
+    def _card_mes(registro: pd.Series | None) -> tuple[str, str]:
+        if registro is None:
+            return "", ""
+        return (
+            formatar_competencia_faturamento(registro["competencia"]),
+            formatar_moeda_br(float(registro["faturamento"])),
+        )
+
+    ultimo_comp, ultimo_valor = _card_mes(ultimo_mes)
+    melhor_comp, melhor_valor = _card_mes(melhor_mes)
+    pior_comp, pior_valor = _card_mes(pior_mes)
+
+    renderizar_metricas_faturamento(
         [
-            {"label": "Faturamento 12M", "value": formatar_moeda_br(total_faturamento)},
-            {"label": "ISS 12M", "value": formatar_moeda_br(total_iss)},
-            {"label": "Meses exibidos", "value": meses_apurados},
-            {"label": "Clientes/CNPJs", "value": clientes_apurados},
+            {"label": "Faturamento 12M", "value": formatar_moeda_br(total_faturamento), "emoji": "📈", "tone": "ok", "detail": "Soma dos 12 meses exibidos"},
+            {"label": "ISS 12M", "value": formatar_moeda_br(total_iss), "emoji": "🧾", "tone": "warning", "detail": "ISS dos 12 meses exibidos"},
+            {"label": "Média mensal", "value": formatar_moeda_br(media_mensal), "emoji": "⚖️", "tone": "info", "detail": "Faturamento médio no período"},
+            {"label": "Último mês", "value": ultimo_comp, "emoji": "🕒", "tone": "neutral", "detail": ultimo_valor},
+            {"label": "Maior mês", "value": melhor_comp, "emoji": "🏆", "tone": "ok", "detail": melhor_valor},
+            {"label": "Menor mês", "value": pior_comp, "emoji": "⬇️", "tone": "danger", "detail": pior_valor},
+            {"label": "Meses exibidos", "value": meses_apurados, "emoji": "🗓️", "tone": "neutral", "detail": "Janela dos 12 meses"},
+            {"label": "Clientes/CNPJs", "value": clientes_apurados, "emoji": "👥", "tone": "info", "detail": "Participações distintas"},
         ]
     )
 
