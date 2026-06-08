@@ -356,15 +356,16 @@ def configurar_pagina() -> None:
                 color: var(--mh-accent);
             }}
             .metric-grid {{
-                display: grid;
-                grid-template-columns: repeat(4, minmax(0, 1fr));
-                gap: 0.6rem;
+                display: flex;
+                flex-direction: column;
+                gap: 0.75rem;
                 margin: 0.6rem 0 0.78rem;
             }}
             .metric-row {{
                 display: grid;
                 gap: 0.6rem;
-                margin-bottom: 0.6rem;
+                width: 100%;
+                margin-bottom: 0;
             }}
             .metric-row.top {{
                 grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -970,7 +971,7 @@ def configurar_pagina() -> None:
                     justify-content: flex-start;
                 }}
                 .metric-grid {{
-                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 0.65rem;
                 }}
                 .metric-row.top,
                 .metric-row.bottom {{
@@ -978,9 +979,6 @@ def configurar_pagina() -> None:
                 }}
             }}
             @media (max-width: 900px) {{
-                .metric-grid {{
-                    grid-template-columns: 1fr;
-                }}
                 .metric-row.top,
                 .metric-row.bottom {{
                     grid-template-columns: 1fr;
