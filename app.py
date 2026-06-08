@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import sqlite3
 import shutil
 import secrets
 import time
@@ -34,6 +35,9 @@ EMPRESAS_DATA_DIR = DATA_DIR / "empresas"
 BACKUPS_DIR = DATA_DIR / "backups"
 CSV_PATH = DATA_DIR / "dados_demo.csv"
 XLSX_PATH = DATA_DIR / "dados_demo.xlsx"
+FATURAMENTO_DIR = DATA_DIR / "faturamento"
+FATURAMENTO_DB_PATH = FATURAMENTO_DIR / "faturamento.sqlite"
+FATURAMENTO_LEGACY_XLSX_PATH = FATURAMENTO_DIR / "faturamento.xlsx"
 CONFIG_PATH = BASE_DIR / "config_clientes.json"
 LOGO_FULL_PATH = ASSETS_DIR / "mh_log_logo_app_512.png"
 SESSOES_PATH = DATA_DIR / "sessoes_portal.json"
@@ -95,6 +99,26 @@ COLUNAS_EXTRAS = [
 ]
 
 COLUNAS_DADOS = COLUNAS_BASE + COLUNAS_EXTRAS
+
+COLUNAS_FATURAMENTO_MENSAL = [
+    "empresa",
+    "cnpj_empresa",
+    "competencia",
+    "faturamento",
+    "iss",
+    "observacao",
+]
+
+COLUNAS_FATURAMENTO_CLIENTE = [
+    "empresa",
+    "cnpj_empresa",
+    "competencia",
+    "cliente",
+    "cnpj_cliente",
+    "faturamento",
+    "iss",
+    "observacao",
+]
 
 COLUNAS_TEXTO = [
     "empresa",
@@ -182,7 +206,7 @@ OPCOES_OCULTAS = {"outro", "decessars monteiro"}
 
 MODULOS_CONTABEIS = [
     {"id": "contas_a_pagar", "titulo": "Contas a Pagar", "ativo": True},
-    {"id": "contas_a_receber", "titulo": "Contas a Receber", "ativo": False},
+    {"id": "contas_a_receber", "titulo": "Faturamento", "ativo": True},
     {"id": "conciliacao_bancaria", "titulo": "Conciliação Bancária", "ativo": False},
     {"id": "extratos_lancamentos", "titulo": "Extratos e Lançamentos", "ativo": False},
     {"id": "receitas_notas", "titulo": "Receitas e Notas Fiscais", "ativo": False},
@@ -1613,6 +1637,209 @@ def carregar_dados_empresas(config: dict) -> pd.DataFrame:
     if not frames:
         return normalizar_dataframe(pd.DataFrame(columns=COLUNAS_DADOS))
     return normalizar_dataframe(pd.concat(frames, ignore_index=True))
+
+
+def competencia_para_data(valor: object) -> pd.Timestamp | None:
+    texto = str(valor or "").strip()
+    if not texto:
+        return None
+    if re.fullmatch(r"\d{4}-\d{2}", texto):
+        texto = f"{texto}-01"
+    elif re.fullmatch(r"\d{2}/\d{4}", texto):
+        texto = f"01/{texto}"
+
+    data = pd.to_datetime(texto, errors="coerce", dayfirst=True)
+    if pd.isna(data):
+        return None
+    return pd.Timestamp(data)
+
+
+def formatar_competencia_faturamento(valor: object) -> str:
+    data = competencia_para_data(valor)
+    if data is None:
+        return str(valor or "").strip()
+    return data.strftime("%m/%Y")
+
+
+def normalizar_faturamento_dataframe(df: pd.DataFrame, tipo: str) -> pd.DataFrame:
+    dados = df.loc[:, ~df.columns.duplicated()].copy()
+    dados.columns = [str(coluna).strip().lower() for coluna in dados.columns]
+
+    colunas_esperadas = COLUNAS_FATURAMENTO_MENSAL if tipo == "mensal" else COLUNAS_FATURAMENTO_CLIENTE
+    for coluna in colunas_esperadas:
+        if coluna not in dados.columns:
+            dados[coluna] = ""
+
+    dados = dados[colunas_esperadas].copy()
+    for coluna in dados.columns:
+        if coluna not in {"faturamento", "iss"}:
+            dados[coluna] = dados[coluna].fillna("").astype(str).str.strip()
+    dados["faturamento"] = pd.to_numeric(dados["faturamento"], errors="coerce").fillna(0.0)
+    dados["iss"] = pd.to_numeric(dados["iss"], errors="coerce").fillna(0.0)
+    return dados
+
+
+def _faturamento_schema() -> dict[str, str]:
+    return {
+        "mensal": """
+            CREATE TABLE IF NOT EXISTS faturamento_mensal (
+                empresa TEXT NOT NULL,
+                cnpj_empresa TEXT NOT NULL DEFAULT '',
+                competencia TEXT NOT NULL,
+                faturamento REAL NOT NULL DEFAULT 0,
+                iss REAL NOT NULL DEFAULT 0,
+                observacao TEXT NOT NULL DEFAULT ''
+            )
+        """,
+        "clientes": """
+            CREATE TABLE IF NOT EXISTS faturamento_clientes (
+                empresa TEXT NOT NULL,
+                cnpj_empresa TEXT NOT NULL DEFAULT '',
+                competencia TEXT NOT NULL,
+                cliente TEXT NOT NULL,
+                cnpj_cliente TEXT NOT NULL DEFAULT '',
+                faturamento REAL NOT NULL DEFAULT 0,
+                iss REAL NOT NULL DEFAULT 0,
+                observacao TEXT NOT NULL DEFAULT ''
+            )
+        """,
+    }
+
+
+def _garantir_faturamento_db() -> None:
+    FATURAMENTO_DIR.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(FATURAMENTO_DB_PATH) as conn:
+        for ddl in _faturamento_schema().values():
+            conn.execute(ddl)
+        conn.commit()
+
+
+def _df_para_sqlite(conn: sqlite3.Connection, tabela: str, df: pd.DataFrame) -> None:
+    df.to_sql(tabela, conn, if_exists="replace", index=False)
+
+
+def _ler_sqlite_faturamento(conn: sqlite3.Connection, tabela: str, colunas: list[str]) -> pd.DataFrame:
+    try:
+        df = pd.read_sql_query(f"SELECT * FROM {tabela}", conn)
+    except Exception:
+        return pd.DataFrame(columns=colunas)
+    return df if not df.empty else pd.DataFrame(columns=colunas)
+
+
+def _importar_faturamento_excel_para_sqlite(arquivo_excel: object) -> None:
+    if hasattr(arquivo_excel, "getvalue"):
+        arquivo_excel = BytesIO(arquivo_excel.getvalue())
+    elif isinstance(arquivo_excel, (bytes, bytearray)):
+        arquivo_excel = BytesIO(arquivo_excel)
+
+    if hasattr(arquivo_excel, "seek"):
+        arquivo_excel.seek(0)
+    workbook = pd.ExcelFile(arquivo_excel)
+    sheet_names = {nome.strip().lower(): nome for nome in workbook.sheet_names}
+    mensal_nome = sheet_names.get("mensal", workbook.sheet_names[0] if workbook.sheet_names else "")
+    clientes_nome = sheet_names.get("clientes", workbook.sheet_names[1] if len(workbook.sheet_names) > 1 else "")
+
+    if hasattr(arquivo_excel, "seek"):
+        arquivo_excel.seek(0)
+    mensal = pd.read_excel(arquivo_excel, sheet_name=mensal_nome) if mensal_nome else pd.DataFrame()
+    if hasattr(arquivo_excel, "seek"):
+        arquivo_excel.seek(0)
+    clientes = pd.read_excel(arquivo_excel, sheet_name=clientes_nome) if clientes_nome else pd.DataFrame()
+
+    mensal = normalizar_faturamento_dataframe(mensal, "mensal")
+    clientes = normalizar_faturamento_dataframe(clientes, "clientes")
+
+    with sqlite3.connect(FATURAMENTO_DB_PATH) as conn:
+        _faturamento_schema()
+        conn.execute(_faturamento_schema()["mensal"])
+        conn.execute(_faturamento_schema()["clientes"])
+        _df_para_sqlite(conn, "faturamento_mensal", mensal)
+        _df_para_sqlite(conn, "faturamento_clientes", clientes)
+        conn.commit()
+
+
+def criar_template_faturamento(caminho_saida: Path | None = None) -> Path:
+    caminho = caminho_saida or FATURAMENTO_DB_PATH
+    _garantir_faturamento_db()
+    with sqlite3.connect(caminho) as conn:
+        conn.execute("DROP TABLE IF EXISTS faturamento_mensal")
+        conn.execute("DROP TABLE IF EXISTS faturamento_clientes")
+        for ddl in _faturamento_schema().values():
+            conn.execute(ddl)
+        conn.commit()
+    return caminho
+
+
+def carregar_faturamento_planilha() -> tuple[pd.DataFrame, pd.DataFrame]:
+    if not FATURAMENTO_DB_PATH.exists() and FATURAMENTO_LEGACY_XLSX_PATH.exists():
+        try:
+            _importar_faturamento_excel_para_sqlite(FATURAMENTO_LEGACY_XLSX_PATH)
+        except Exception:
+            pass
+
+    if not FATURAMENTO_DB_PATH.exists():
+        return (
+            pd.DataFrame(columns=COLUNAS_FATURAMENTO_MENSAL),
+            pd.DataFrame(columns=COLUNAS_FATURAMENTO_CLIENTE),
+        )
+
+    _garantir_faturamento_db()
+    with sqlite3.connect(FATURAMENTO_DB_PATH) as conn:
+        mensal = _ler_sqlite_faturamento(conn, "faturamento_mensal", COLUNAS_FATURAMENTO_MENSAL)
+        clientes = _ler_sqlite_faturamento(conn, "faturamento_clientes", COLUNAS_FATURAMENTO_CLIENTE)
+
+    return (
+        normalizar_faturamento_dataframe(mensal, "mensal"),
+        normalizar_faturamento_dataframe(clientes, "clientes"),
+    )
+
+
+def faturamento_empresa(mensal: pd.DataFrame, clientes: pd.DataFrame, empresa: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+    mensal_empresa = mensal.loc[mensal["empresa"].astype(str).str.upper() == empresa.strip().upper()].copy()
+    clientes_empresa = clientes.loc[clientes["empresa"].astype(str).str.upper() == empresa.strip().upper()].copy()
+
+    if not mensal_empresa.empty:
+        mensal_empresa["_ordem"] = mensal_empresa["competencia"].apply(competencia_para_data)
+        mensal_empresa = mensal_empresa.sort_values("_ordem", na_position="last").drop(columns=["_ordem"], errors="ignore")
+
+    if not clientes_empresa.empty:
+        clientes_empresa["_ordem"] = clientes_empresa["competencia"].apply(competencia_para_data)
+        clientes_empresa = clientes_empresa.sort_values(
+            ["cliente", "_ordem"],
+            na_position="last",
+        ).drop(columns=["_ordem"], errors="ignore")
+
+    return mensal_empresa, clientes_empresa
+
+
+def resumir_faturamento_clientes(clientes: pd.DataFrame) -> pd.DataFrame:
+    if clientes.empty:
+        return pd.DataFrame(
+            columns=[
+                "cliente",
+                "cnpj_cliente",
+                "faturamento",
+                "iss",
+                "participacao",
+            ]
+        )
+
+    total = float(clientes["faturamento"].sum())
+    resumo = (
+        clientes.groupby(["cliente", "cnpj_cliente"], dropna=False, as_index=False)[["faturamento", "iss"]]
+        .sum()
+        .sort_values("faturamento", ascending=False, na_position="last")
+    )
+    resumo["participacao"] = resumo["faturamento"].apply(lambda valor: (valor / total * 100) if total else 0)
+    return resumo
+
+
+def criar_bytes_modelo_faturamento() -> bytes:
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        pd.DataFrame(columns=COLUNAS_FATURAMENTO_MENSAL).to_excel(writer, sheet_name="Mensal", index=False)
+        pd.DataFrame(columns=COLUNAS_FATURAMENTO_CLIENTE).to_excel(writer, sheet_name="Clientes", index=False)
+    return buffer.getvalue()
 
 
 def salvar_dados_empresa(
@@ -3905,6 +4132,120 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
                 "A base operacional esta vazia. Se isso nao era esperado, restaure um backup antes de registrar novas contas."
             )
 
+def pagina_faturamento(empresa: str, usuario: str) -> None:
+    st.subheader("Faturamento")
+    st.caption("Atualizacao manual por planilha do projeto. A base oficial fica em `data/faturamento/faturamento.sqlite`.")
+
+    mensal, clientes = carregar_faturamento_planilha()
+    mensal_empresa, clientes_empresa = faturamento_empresa(mensal, clientes, empresa)
+    resumo_clientes = resumir_faturamento_clientes(clientes_empresa)
+
+    with st.container(border=True):
+        st.markdown("#### Atualizar planilha")
+        st.caption("Carregue um arquivo Excel com as abas `Mensal` e `Clientes` para alimentar o banco local.")
+        upload_col, modelo_col = st.columns([1.5, 1.0], gap="small")
+        with upload_col:
+            with st.form("form_atualizar_faturamento", clear_on_submit=False):
+                arquivo = st.file_uploader("Arquivo de faturamento", type=["xlsx"], key="upload_faturamento_xlsx")
+                enviar = st.form_submit_button("Atualizar planilha", use_container_width=True)
+            if enviar:
+                if arquivo is None:
+                    st.warning("Escolha um arquivo Excel antes de atualizar.")
+                else:
+                    try:
+                        _importar_faturamento_excel_para_sqlite(arquivo)
+                        st.success("Faturamento atualizado no banco local.")
+                        st.rerun()
+                    except Exception as erro:
+                        st.error(f"Nao foi possivel importar o faturamento: {erro}")
+        with modelo_col:
+            st.download_button(
+                "Baixar modelo",
+                data=criar_bytes_modelo_faturamento(),
+                file_name="faturamento_modelo.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+
+    if mensal_empresa.empty and clientes_empresa.empty:
+        st.info("Nenhum faturamento cadastrado ainda para esta empresa. Use o modelo para preencher a planilha.")
+        st.caption(f"Banco esperado: {FATURAMENTO_DB_PATH.relative_to(BASE_DIR)}")
+        return
+
+    total_faturamento = float(mensal_empresa["faturamento"].sum()) if not mensal_empresa.empty else float(clientes_empresa["faturamento"].sum())
+    total_iss = float(mensal_empresa["iss"].sum()) if not mensal_empresa.empty else float(clientes_empresa["iss"].sum())
+    meses_apurados = int(mensal_empresa["competencia"].nunique()) if not mensal_empresa.empty else int(clientes_empresa["competencia"].nunique())
+    clientes_apurados = int(resumo_clientes[["cliente", "cnpj_cliente"]].drop_duplicates().shape[0]) if not resumo_clientes.empty else 0
+
+    renderizar_metricas(
+        [
+            {"label": "Faturamento total", "value": formatar_moeda_br(total_faturamento)},
+            {"label": "ISS total", "value": formatar_moeda_br(total_iss)},
+            {"label": "Meses apurados", "value": meses_apurados},
+            {"label": "Clientes/CNPJs", "value": clientes_apurados},
+        ]
+    )
+
+    abas = st.tabs(["Mensal", "Por cliente/CNPJ"])
+    with abas[0]:
+        if mensal_empresa.empty:
+            st.info("Sem registros mensais para esta empresa.")
+        else:
+            mensal_exibicao = mensal_empresa.copy()
+            mensal_exibicao["competencia"] = mensal_exibicao["competencia"].apply(formatar_competencia_faturamento)
+            mensal_exibicao["faturamento"] = mensal_exibicao["faturamento"].map(formatar_moeda_br)
+            mensal_exibicao["iss"] = mensal_exibicao["iss"].map(formatar_moeda_br)
+            mensal_exibicao = mensal_exibicao.rename(
+                columns={
+                    "empresa": "Empresa",
+                    "cnpj_empresa": "CNPJ Empresa",
+                    "competencia": "Competencia",
+                    "faturamento": "Faturamento (R$)",
+                    "iss": "ISS (R$)",
+                    "observacao": "Observacao",
+                }
+            )
+            st.dataframe(mensal_exibicao, use_container_width=True, hide_index=True)
+
+    with abas[1]:
+        if clientes_empresa.empty:
+            st.info("Sem registros por cliente/CNPJ para esta empresa.")
+        else:
+            clientes_matriz = clientes_empresa.copy()
+            clientes_matriz["competencia"] = clientes_matriz["competencia"].apply(formatar_competencia_faturamento)
+            competencias = sorted(
+                clientes_matriz["competencia"].dropna().astype(str).unique().tolist(),
+                key=lambda item: competencia_para_data(item) or pd.Timestamp.min,
+            )
+            tabela = clientes_matriz.pivot_table(
+                index=["cliente", "cnpj_cliente"],
+                columns="competencia",
+                values="faturamento",
+                aggfunc="sum",
+                fill_value=0,
+            )
+            tabela = tabela.reindex(columns=competencias, fill_value=0)
+            tabela["Total"] = tabela.sum(axis=1)
+            total_geral = float(tabela["Total"].sum())
+            tabela["%"] = tabela["Total"].apply(lambda valor: (valor / total_geral * 100) if total_geral else 0)
+            tabela = tabela.reset_index()
+
+            total_geral_row = {"cliente": "TOTAL GERAL", "cnpj_cliente": ""}
+            for comp in competencias:
+                total_geral_row[comp] = float(tabela[comp].sum())
+            total_geral_row["Total"] = total_geral
+            total_geral_row["%"] = 100.0
+            tabela = pd.concat([tabela, pd.DataFrame([total_geral_row])], ignore_index=True)
+            tabela = tabela.rename(columns={"cliente": "Cliente", "cnpj_cliente": "CPF/CNPJ"})
+
+            for coluna in competencias + ["Total"]:
+                tabela[coluna] = tabela[coluna].map(formatar_moeda_br)
+            tabela["%"] = tabela["%"].map(lambda valor: f"{float(valor):.1f}%")
+            st.dataframe(tabela, use_container_width=True, hide_index=True)
+
+    st.caption(f"Banco esperado: {FATURAMENTO_DB_PATH.relative_to(BASE_DIR)}")
+
+
 def main() -> None:
     configurar_pagina()
     aplicar_emojis_botoes_filtro()
@@ -3937,8 +4278,11 @@ def main() -> None:
         status_geral, status_tipo = status_geral_contas(contas)
 
     mostrar_cabecalho(empresa, status_geral, status_tipo)
-    if st.session_state.get("modulo_atual", "contas_a_pagar") == "contas_a_pagar":
+    modulo_atual = st.session_state.get("modulo_atual", "contas_a_pagar")
+    if modulo_atual == "contas_a_pagar":
         pagina_contas_a_pagar(df, empresa, usuario)
+    elif modulo_atual == "contas_a_receber":
+        pagina_faturamento(empresa, usuario)
     else:
         st.info("Este módulo ainda não está liberado.")
 

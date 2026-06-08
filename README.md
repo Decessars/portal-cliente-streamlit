@@ -13,6 +13,7 @@ Nesta versao, a funcao principal e **Contas a Pagar**:
 - upload de anexos, como boletos, notas fiscais e guias;
 - exclusao logica de contas, preservando auditoria;
 - registro de data/hora e usuario responsavel pela inclusao ou exclusao;
+- faturamento manual em planilha, armazenado em SQLite, com visao mensal e por cliente/CNPJ;
 - tipos de conta baseados nos passivos monitorados no `dominio_dmls_08.py`.
 
 ## Persistencia Dos Dados
@@ -29,6 +30,15 @@ Quando essa configuracao existe, o app le e grava direto na planilha. Antes de c
 Na primeira execucao com Google Sheets ativo, se a planilha estiver vazia e ainda existir um CSV local com dados, o app pode migrar essa base automaticamente para a aba da empresa.
 
 Se a configuracao de Google Sheets nao existir, o app continua funcionando em modo local com CSV, mas isso nao e persistencia confiavel para Streamlit Cloud.
+
+## Faturamento Manual
+
+O portal usa `data/faturamento/faturamento.sqlite` como base oficial do modulo de Faturamento.
+
+- a planilha Excel continua sendo aceita como importacao manual;
+- a aba `Mensal` alimenta o resumo por competencia, faturamento e ISS;
+- a aba `Clientes` alimenta o detalhamento por cliente/CNPJ e competencia;
+- o proprio portal tem um upload manual para importar o Excel e gravar no banco local.
 
 ## Como Rodar Localmente
 
