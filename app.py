@@ -4309,6 +4309,19 @@ def pagina_faturamento(empresa: str, usuario: str) -> None:
         ]
     )
 
+    if not mensal_empresa.empty:
+        grafico_mensal = mensal_empresa.copy()
+        grafico_mensal["_ordem"] = grafico_mensal["competencia"].apply(competencia_para_data)
+        grafico_mensal = grafico_mensal.sort_values("_ordem", ascending=True, na_position="last")
+        grafico_mensal["competencia_label"] = grafico_mensal["competencia"].apply(formatar_competencia_faturamento)
+        with st.container(border=True):
+            st.markdown("#### Evolucao mensal")
+            st.line_chart(
+                grafico_mensal.set_index("competencia_label")[["faturamento"]],
+                use_container_width=True,
+                height=280,
+            )
+
     abas = st.tabs(["Mensal", "Por cliente/CNPJ"])
     with abas[0]:
         if mensal_empresa.empty:
