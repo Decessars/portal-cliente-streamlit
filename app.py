@@ -356,6 +356,7 @@ def configurar_pagina() -> None:
             }}
             .metric-grid {{
                 display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
                 gap: 0.6rem;
                 margin: 0.6rem 0 0.78rem;
             }}
@@ -915,12 +916,18 @@ def configurar_pagina() -> None:
                     width: 100%;
                     justify-content: flex-start;
                 }}
+                .metric-grid {{
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                }}
                 .metric-row.top,
                 .metric-row.bottom {{
                     grid-template-columns: repeat(2, minmax(0, 1fr));
                 }}
             }}
             @media (max-width: 900px) {{
+                .metric-grid {{
+                    grid-template-columns: 1fr;
+                }}
                 .metric-row.top,
                 .metric-row.bottom {{
                     grid-template-columns: 1fr;
