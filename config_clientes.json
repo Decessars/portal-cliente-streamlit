@@ -6,8 +6,7 @@
       "perfil": "administrador",
       "empresas": [
         "MHLOG",
-        "MH BRASIL",
-        "SOLUCINTO"
+        "MH BRASIL"
       ]
     },
     {
@@ -16,8 +15,7 @@
       "perfil": "estagiario",
       "empresas": [
         "MHLOG",
-        "MH BRASIL",
-        "SOLUCINTO"
+        "MH BRASIL"
       ]
     },
     {
@@ -26,8 +24,7 @@
       "perfil": "dono",
       "empresas": [
         "MHLOG",
-        "MH BRASIL",
-        "SOLUCINTO"
+        "MH BRASIL"
       ]
     },
     {
@@ -36,8 +33,7 @@
       "perfil": "dono",
       "empresas": [
         "MHLOG",
-        "MH BRASIL",
-        "SOLUCINTO"
+        "MH BRASIL"
       ]
     },
     {
@@ -46,8 +42,7 @@
       "perfil": "socio_operador",
       "empresas": [
         "MHLOG",
-        "MH BRASIL",
-        "SOLUCINTO"
+        "MH BRASIL"
       ]
     },
     {
@@ -56,8 +51,7 @@
       "perfil": "socio_operador",
       "empresas": [
         "MHLOG",
-        "MH BRASIL",
-        "SOLUCINTO"
+        "MH BRASIL"
       ]
     },
     {
@@ -66,8 +60,7 @@
       "perfil": "financeiro",
       "empresas": [
         "MHLOG",
-        "MH BRASIL",
-        "SOLUCINTO"
+        "MH BRASIL"
       ]
     }
   ],
@@ -77,9 +70,6 @@
     },
     {
       "empresa": "MH BRASIL"
-    },
-    {
-      "empresa": "SOLUCINTO"
     }
   ]
 }
