@@ -4231,8 +4231,6 @@ def main() -> None:
         tela_login(config)
         st.stop()
 
-    renderizar_menu_direito(config)
-
     if not st.session_state.get("empresa_logada"):
         dashboard_empresas(config, carregar_dados_empresas(config))
         st.stop()
@@ -4250,8 +4248,10 @@ def main() -> None:
     else:
         status_geral, status_tipo = status_geral_contas(contas)
 
-    mostrar_cabecalho(empresa, status_geral, status_tipo)
     modulo_atual = st.session_state.get("modulo_atual", "contas_a_pagar")
+    if modulo_atual != "contas_a_receber":
+        renderizar_menu_direito(config)
+        mostrar_cabecalho(empresa, status_geral, status_tipo)
     if modulo_atual == "contas_a_pagar":
         pagina_contas_a_pagar(df, empresa, usuario)
     elif modulo_atual == "contas_a_receber":
