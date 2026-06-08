@@ -31,14 +31,14 @@ Na primeira execucao com Google Sheets ativo, se a planilha estiver vazia e aind
 
 Se a configuracao de Google Sheets nao existir, o app continua funcionando em modo local com CSV, mas isso nao e persistencia confiavel para Streamlit Cloud.
 
-## Faturamento Manual
+## Faturamento
 
 O portal usa `data/faturamento/faturamento.sqlite` como base oficial do modulo de Faturamento.
 
-- a planilha Excel continua sendo aceita como importacao manual;
+- a tela do portal e apenas para visualizacao;
 - a aba `Mensal` alimenta o resumo por competencia, faturamento e ISS;
 - a aba `Clientes` alimenta o detalhamento por cliente/CNPJ e competencia;
-- o proprio portal tem um upload manual para importar o Excel e gravar no banco local.
+- a atualizacao da base acontece fora do portal, por processo local ou rotina interna.
 
 ## Como Rodar Localmente
 

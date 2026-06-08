@@ -4134,41 +4134,14 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
 def pagina_faturamento(empresa: str, usuario: str) -> None:
     st.subheader("Faturamento")
-    st.caption("Atualizacao manual por planilha do projeto. A base oficial fica em `data/faturamento/faturamento.sqlite`.")
+    st.caption("Visualizacao somente leitura. A base oficial fica em `data/faturamento/faturamento.sqlite`.")
 
     mensal, clientes = carregar_faturamento_planilha()
     mensal_empresa, clientes_empresa = faturamento_empresa(mensal, clientes, empresa)
     resumo_clientes = resumir_faturamento_clientes(clientes_empresa)
 
-    with st.container(border=True):
-        st.markdown("#### Atualizar planilha")
-        st.caption("Carregue um arquivo Excel com as abas `Mensal` e `Clientes` para alimentar o banco local.")
-        upload_col, modelo_col = st.columns([1.5, 1.0], gap="small")
-        with upload_col:
-            with st.form("form_atualizar_faturamento", clear_on_submit=False):
-                arquivo = st.file_uploader("Arquivo de faturamento", type=["xlsx"], key="upload_faturamento_xlsx")
-                enviar = st.form_submit_button("Atualizar planilha", use_container_width=True)
-            if enviar:
-                if arquivo is None:
-                    st.warning("Escolha um arquivo Excel antes de atualizar.")
-                else:
-                    try:
-                        _importar_faturamento_excel_para_sqlite(arquivo)
-                        st.success("Faturamento atualizado no banco local.")
-                        st.rerun()
-                    except Exception as erro:
-                        st.error(f"Nao foi possivel importar o faturamento: {erro}")
-        with modelo_col:
-            st.download_button(
-                "Baixar modelo",
-                data=criar_bytes_modelo_faturamento(),
-                file_name="faturamento_modelo.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-            )
-
     if mensal_empresa.empty and clientes_empresa.empty:
-        st.info("Nenhum faturamento cadastrado ainda para esta empresa. Use o modelo para preencher a planilha.")
+        st.info("Nenhum faturamento cadastrado ainda para esta empresa.")
         st.caption(f"Banco esperado: {FATURAMENTO_DB_PATH.relative_to(BASE_DIR)}")
         return
 
