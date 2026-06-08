@@ -6,42 +6,42 @@ Arquivo apenas para consulta.
 Usuario: ALEX
 Senha: 123456
 Perfil: Dono
-Empresas: MHLOG, MH BRASIL
+Empresas: MHLOG, MH BRASIL, SOLUCINTO
 Acesso: Somente consulta
 ------------------------------------------------
 Usuario: GABRIEL
 Senha: 123456
 Perfil: Dono
-Empresas: MHLOG, MH BRASIL
+Empresas: MHLOG, MH BRASIL, SOLUCINTO
 Acesso: Somente consulta
 ------------------------------------------------
 Usuario: DMLIMA
 Senha: 123456
 Perfil: Administrador
-Empresas: MHLOG, MH BRASIL
+Empresas: MHLOG, MH BRASIL, SOLUCINTO
 Acesso: Opera o sistema
 ------------------------------------------------
 Usuario: JESSICA
 Senha: 123456
 Perfil: Socio operador
-Empresas: MHLOG, MH BRASIL
+Empresas: MHLOG, MH BRASIL, SOLUCINTO
 Acesso: Opera o sistema
 ------------------------------------------------
 Usuario: MH_FINANCEIRO
 Senha: 123456
 Perfil: Financeiro
-Empresas: MHLOG, MH BRASIL
+Empresas: MHLOG, MH BRASIL, SOLUCINTO
 Acesso: Consulta e marca contas como pagas
 ------------------------------------------------
 Usuario: RAFAEL
 Senha: 123456
 Perfil: Socio operador
-Empresas: MHLOG, MH BRASIL
+Empresas: MHLOG, MH BRASIL, SOLUCINTO
 Acesso: Opera o sistema
 ------------------------------------------------
 Usuario: VITOR
 Senha: 123456
 Perfil: Estagiario
-Empresas: MHLOG, MH BRASIL
+Empresas: MHLOG, MH BRASIL, SOLUCINTO
 Acesso: Opera o sistema
 ------------------------------------------------

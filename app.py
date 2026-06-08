@@ -1211,14 +1211,15 @@ def renderizar_pizza_faturamento(resumo_clientes: pd.DataFrame) -> None:
 def criar_config_demo() -> dict:
     config = {
         "usuarios": [
-            {"usuario": "DMLIMA", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "VICTOR", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "ALEX", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
-            {"usuario": "GABRIEL", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "DMLIMA", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL", "SOLUCINTO"]},
+            {"usuario": "VICTOR", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL", "SOLUCINTO"]},
+            {"usuario": "ALEX", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL", "SOLUCINTO"]},
+            {"usuario": "GABRIEL", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL", "SOLUCINTO"]},
         ],
         "clientes": [
             {"empresa": "MHLOG"},
             {"empresa": "MH BRASIL"},
+            {"empresa": "SOLUCINTO"},
         ]
     }
     CONFIG_PATH.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
