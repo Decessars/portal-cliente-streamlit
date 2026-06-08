@@ -1647,18 +1647,43 @@ def carregar_dados_empresas(config: dict) -> pd.DataFrame:
 
 
 def competencia_para_data(valor: object) -> pd.Timestamp | None:
-    texto = str(valor or "").strip()
+    if valor is None:
+        return None
+    if isinstance(valor, pd.Timestamp):
+        return valor.normalize()
+    if isinstance(valor, datetime):
+        return pd.Timestamp(valor).normalize()
+    if isinstance(valor, date):
+        return pd.Timestamp(datetime(valor.year, valor.month, valor.day))
+
+    texto = str(valor).strip()
     if not texto:
         return None
-    if re.fullmatch(r"\d{4}-\d{2}", texto):
-        texto = f"{texto}-01"
-    elif re.fullmatch(r"\d{2}/\d{4}", texto):
-        texto = f"01/{texto}"
+
+    correspondencia = re.fullmatch(r"(\d{4})-(\d{2})", texto)
+    if correspondencia:
+        ano, mes = map(int, correspondencia.groups())
+        return pd.Timestamp(year=ano, month=mes, day=1)
+
+    correspondencia = re.fullmatch(r"(\d{2})/(\d{4})", texto)
+    if correspondencia:
+        mes, ano = map(int, correspondencia.groups())
+        return pd.Timestamp(year=ano, month=mes, day=1)
+
+    correspondencia = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", texto)
+    if correspondencia:
+        ano, mes, dia = map(int, correspondencia.groups())
+        return pd.Timestamp(year=ano, month=mes, day=dia)
+
+    correspondencia = re.fullmatch(r"(\d{2})/(\d{2})/(\d{4})", texto)
+    if correspondencia:
+        dia, mes, ano = map(int, correspondencia.groups())
+        return pd.Timestamp(year=ano, month=mes, day=dia)
 
     data = pd.to_datetime(texto, errors="coerce", dayfirst=True)
     if pd.isna(data):
         return None
-    return pd.Timestamp(data)
+    return pd.Timestamp(data).normalize()
 
 
 def formatar_competencia_faturamento(valor: object) -> str:
@@ -4141,10 +4166,48 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
 def pagina_faturamento(empresa: str, usuario: str) -> None:
     st.subheader("Faturamento")
-    st.caption("Visualizacao somente leitura. A base oficial fica em `data/faturamento/faturamento.sqlite`.")
+    st.caption("Visualizacao somente leitura. Mostrando os 12 meses mais recentes da base oficial em `data/faturamento/faturamento.sqlite`.")
 
     mensal, clientes = carregar_faturamento_planilha()
     mensal_empresa, clientes_empresa = faturamento_empresa(mensal, clientes, empresa)
+
+    if not mensal_empresa.empty:
+        mensal_empresa = (
+            mensal_empresa.groupby(["empresa", "cnpj_empresa", "competencia"], as_index=False)
+            .agg({"faturamento": "sum", "iss": "sum", "observacao": "first"})
+        )
+        mensal_empresa["_ordem"] = mensal_empresa["competencia"].apply(competencia_para_data)
+        mensal_empresa = (
+            mensal_empresa.sort_values("_ordem", ascending=False, na_position="last")
+            .head(12)
+            .drop(columns=["_ordem"], errors="ignore")
+        )
+
+    if not mensal_empresa.empty:
+        competencias_exibidas = mensal_empresa["competencia"].tolist()
+    elif not clientes_empresa.empty:
+        competencias_exibidas = (
+            clientes_empresa["competencia"]
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+        competencias_exibidas = sorted(
+            competencias_exibidas,
+            key=lambda item: competencia_para_data(item) or pd.Timestamp.min,
+            reverse=True,
+        )[:12]
+    else:
+        competencias_exibidas = []
+
+    clientes_empresa = clientes_empresa.loc[clientes_empresa["competencia"].isin(competencias_exibidas)].copy()
+    if not clientes_empresa.empty:
+        clientes_empresa = (
+            clientes_empresa.groupby(["cliente", "cnpj_cliente", "competencia"], as_index=False)
+            .agg({"faturamento": "sum", "iss": "sum", "observacao": "first"})
+        )
+
     resumo_clientes = resumir_faturamento_clientes(clientes_empresa)
 
     if mensal_empresa.empty and clientes_empresa.empty:
@@ -4152,16 +4215,16 @@ def pagina_faturamento(empresa: str, usuario: str) -> None:
         st.caption(f"Banco esperado: {FATURAMENTO_DB_PATH.relative_to(BASE_DIR)}")
         return
 
-    total_faturamento = float(mensal_empresa["faturamento"].sum()) if not mensal_empresa.empty else float(clientes_empresa["faturamento"].sum())
-    total_iss = float(mensal_empresa["iss"].sum()) if not mensal_empresa.empty else float(clientes_empresa["iss"].sum())
-    meses_apurados = int(mensal_empresa["competencia"].nunique()) if not mensal_empresa.empty else int(clientes_empresa["competencia"].nunique())
+    total_faturamento = float(mensal_empresa["faturamento"].sum()) if not mensal_empresa.empty else 0.0
+    total_iss = float(mensal_empresa["iss"].sum()) if not mensal_empresa.empty else 0.0
+    meses_apurados = int(mensal_empresa["competencia"].nunique()) if not mensal_empresa.empty else 0
     clientes_apurados = int(resumo_clientes[["cliente", "cnpj_cliente"]].drop_duplicates().shape[0]) if not resumo_clientes.empty else 0
 
     renderizar_metricas(
         [
-            {"label": "Faturamento total", "value": formatar_moeda_br(total_faturamento)},
-            {"label": "ISS total", "value": formatar_moeda_br(total_iss)},
-            {"label": "Meses apurados", "value": meses_apurados},
+            {"label": "Faturamento 12M", "value": formatar_moeda_br(total_faturamento)},
+            {"label": "ISS 12M", "value": formatar_moeda_br(total_iss)},
+            {"label": "Meses exibidos", "value": meses_apurados},
             {"label": "Clientes/CNPJs", "value": clientes_apurados},
         ]
     )
@@ -4192,11 +4255,7 @@ def pagina_faturamento(empresa: str, usuario: str) -> None:
             st.info("Sem registros por cliente/CNPJ para esta empresa.")
         else:
             clientes_matriz = clientes_empresa.copy()
-            clientes_matriz["competencia"] = clientes_matriz["competencia"].apply(formatar_competencia_faturamento)
-            competencias = sorted(
-                clientes_matriz["competencia"].dropna().astype(str).unique().tolist(),
-                key=lambda item: competencia_para_data(item) or pd.Timestamp.min,
-            )
+            competencias = [competencia for competencia in competencias_exibidas if competencia in clientes_matriz["competencia"].astype(str).unique()]
             tabela = clientes_matriz.pivot_table(
                 index=["cliente", "cnpj_cliente"],
                 columns="competencia",
@@ -4218,7 +4277,9 @@ def pagina_faturamento(empresa: str, usuario: str) -> None:
             tabela = pd.concat([tabela, pd.DataFrame([total_geral_row])], ignore_index=True)
             tabela = tabela.rename(columns={"cliente": "Cliente", "cnpj_cliente": "CPF/CNPJ"})
 
-            for coluna in competencias + ["Total"]:
+            tabela = tabela.rename(columns={coluna: formatar_competencia_faturamento(coluna) for coluna in competencias})
+
+            for coluna in [formatar_competencia_faturamento(coluna) for coluna in competencias] + ["Total"]:
                 tabela[coluna] = tabela[coluna].map(formatar_moeda_br)
             tabela["%"] = tabela["%"].map(lambda valor: f"{float(valor):.1f}%")
             st.dataframe(tabela, use_container_width=True, hide_index=True)
