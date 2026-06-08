@@ -13,6 +13,7 @@ from datetime import date, datetime
 from html import escape
 from io import BytesIO
 from pathlib import Path
+from textwrap import dedent
 
 import pandas as pd
 import streamlit as st
@@ -1171,19 +1172,12 @@ def renderizar_pizza_faturamento(resumo_clientes: pd.DataFrame) -> None:
         cliente = str(linha.get("cliente", "")).strip() or "Sem nome"
         cnpj = str(linha.get("cnpj_cliente", "")).strip() or "-"
         itens_legenda.append(
-            f"""
-            <div class="pie-item">
-                <span class="pie-swatch" style="background:{cor}"></span>
-                <div>
-                    <strong>{escape(cliente)}</strong>
-                    <span>{escape(cnpj)} | {formatar_moeda_br(valor)} | {float(linha.get('participacao_calc', participacao * 100)):.1f}%</span>
-                </div>
-            </div>
-            """
+            f'<div class="pie-item"><span class="pie-swatch" style="background:{cor}"></span><div><strong>{escape(cliente)}</strong><span>{escape(cnpj)} | {formatar_moeda_br(valor)} | {float(linha.get("participacao_calc", participacao * 100)):.1f}%</span></div></div>'
         )
         inicio = fim
 
-    svg = f"""
+    svg = dedent(
+        f"""
         <svg viewBox="0 0 240 240" width="240" height="240" aria-label="Grafico de pizza de faturamento">
             <circle cx="{cx}" cy="{cy}" r="{r}" fill="#f8faf9" stroke="#d4ddd9" stroke-width="1.5" />
             {''.join(setores)}
@@ -1191,19 +1185,19 @@ def renderizar_pizza_faturamento(resumo_clientes: pd.DataFrame) -> None:
             <text x="{cx}" y="{cy - 4}" text-anchor="middle" font-size="14" font-weight="700" fill="#246b47">Total</text>
             <text x="{cx}" y="{cy + 16}" text-anchor="middle" font-size="15" font-weight="700" fill="#13221d">{formatar_moeda_br(total)}</text>
         </svg>
-    """
-
-    st.markdown(
+        """
+    ).strip()
+    legenda_html = "".join(itens_legenda)
+    bloco_html = dedent(
         f"""
         <div class="pie-card">
             <div class="pie-figure">{svg}</div>
-            <div class="pie-legend">
-                {''.join(itens_legenda)}
-            </div>
+            <div class="pie-legend">{legenda_html}</div>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
+    ).strip()
+
+    st.markdown(bloco_html, unsafe_allow_html=True)
 
 
 def criar_config_demo() -> dict:
