@@ -57,6 +57,7 @@ Use estes acessos demonstrativos para testar:
 DMLIMA / 123456
 VITOR / 123456
 ALEX / 123456
+GABRIEL / 123456
 MH_FINANCEIRO / 123456
 RAFAEL / 123456
 JESSICA / 123456
@@ -69,6 +70,7 @@ Perfis:
 - `DMLIMA`: administrador, com acesso a tudo.
 - `VITOR`: estagiario, pode operar o sistema.
 - `ALEX`: dono da empresa, perfil de consulta.
+- `GABRIEL`: dono da empresa, perfil de consulta.
 - `MH_FINANCEIRO`: financeiro, pode visualizar e marcar contas como pagas.
 - `RAFAEL` e `JESSICA`: socios da empresa, podem operar o sistema.
 

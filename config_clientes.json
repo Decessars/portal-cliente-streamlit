@@ -28,6 +28,15 @@
       ]
     },
     {
+      "usuario": "GABRIEL",
+      "senha": "123456",
+      "perfil": "dono",
+      "empresas": [
+        "MHLOG",
+        "MH BRASIL"
+      ]
+    },
+    {
       "usuario": "RAFAEL",
       "senha": "123456",
       "perfil": "socio_operador",

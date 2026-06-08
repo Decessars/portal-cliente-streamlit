@@ -9,6 +9,12 @@ Perfil: Dono
 Empresas: MHLOG, MH BRASIL
 Acesso: Somente consulta
 ------------------------------------------------
+Usuario: GABRIEL
+Senha: 123456
+Perfil: Dono
+Empresas: MHLOG, MH BRASIL
+Acesso: Somente consulta
+------------------------------------------------
 Usuario: DMLIMA
 Senha: 123456
 Perfil: Administrador

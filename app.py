@@ -668,6 +668,27 @@ def configurar_pagina() -> None:
                 background: rgba(36, 107, 71, 0.08) !important;
                 color: var(--mh-accent) !important;
             }}
+            .contas-toolbar {{
+                display: grid;
+                grid-template-columns: 2.15fr 1.45fr 1.1fr;
+                align-items: start;
+                gap: 0.9rem;
+                margin: 0.25rem 0 0.55rem;
+            }}
+            .contas-toolbar-label {{
+                color: var(--mh-muted);
+                font-size: 0.74rem;
+                font-weight: 800;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                margin: 0 0 0.28rem;
+                line-height: 1;
+            }}
+            .contas-toolbar [data-testid="stDownloadButton"] > button,
+            .contas-toolbar [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+            .contas-toolbar [data-testid="stToggle"] button {{
+                min-height: 2.55rem;
+            }}
             [data-testid="stSelectbox"] {{
                 margin-top: 0.08rem;
             }}
@@ -979,6 +1000,7 @@ def criar_config_demo() -> dict:
             {"usuario": "DMLIMA", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
             {"usuario": "VICTOR", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
             {"usuario": "ALEX", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
+            {"usuario": "GABRIEL", "senha": "123456", "empresas": ["MHLOG", "MH BRASIL"]},
         ],
         "clientes": [
             {"empresa": "MHLOG"},
@@ -3793,10 +3815,19 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
     contas = filtrar_contas_a_pagar_abertas(df, empresa, somente_pagas=exibir_pagas)
 
-    cabecalho_contas, acao_excel, visibilidade, filtro_pagas = st.columns([3.4, 1.45, 1.55, 1.25], gap="small")
-    with cabecalho_contas:
-        st.markdown("### Contas pagas" if exibir_pagas else "### Contas para pagar")
-    with acao_excel:
+    st.markdown("### Contas pagas" if exibir_pagas else "### Contas para pagar")
+    st.markdown(
+        """
+        <div class="contas-toolbar">
+            <div class="contas-toolbar-label">Exportação</div>
+            <div class="contas-toolbar-label">Visualização</div>
+            <div class="contas-toolbar-label">Filtro</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    toolbar_export, toolbar_visual, toolbar_filtro = st.columns([2.15, 1.45, 1.1], gap="medium")
+    with toolbar_export:
         st.download_button(
             "Exportar Excel",
             data=gerar_excel_contas_download(contas, empresa),
@@ -3805,18 +3836,19 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
             key="baixar_excel_contas",
             use_container_width=True,
         )
-    with visibilidade:
+    with toolbar_visual:
         st.selectbox(
             "Visualização",
             ["Tabela", "Cards"],
             key="contas_visualizacao_modo",
-            label_visibility="visible",
+            label_visibility="collapsed",
         )
-    with filtro_pagas:
+    with toolbar_filtro:
         st.toggle(
             "Exibir pagas",
             key="contas_exibir_pagas",
             help="Mostra tambem as contas ja marcadas como pagas.",
+            label_visibility="collapsed",
         )
 
     if contas.empty:
