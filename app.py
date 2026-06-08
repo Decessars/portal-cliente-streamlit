@@ -648,11 +648,18 @@ def configurar_pagina() -> None:
                 color: var(--mh-text) !important;
                 box-shadow: none !important;
                 font-weight: 700;
-                min-height: 1.9rem !important;
-                padding: 0.18rem 0.55rem !important;
+                min-height: 2.15rem !important;
+                padding: 0.22rem 0.7rem !important;
                 white-space: nowrap !important;
                 overflow: hidden !important;
                 text-overflow: ellipsis !important;
+            }}
+            [class*="st-key-baixar_excel_contas"] button {{
+                border-color: rgba(36, 107, 71, 0.35) !important;
+                background: linear-gradient(180deg, rgba(36, 107, 71, 0.12), rgba(36, 107, 71, 0.05)) !important;
+                color: var(--mh-accent) !important;
+                box-shadow: 0 6px 14px rgba(19, 34, 29, 0.05) !important;
+                font-weight: 800;
             }}
             [class*="st-key-ordenar_contas_"] button:hover,
             [class*="st-key-contas_acao_"] button:hover,
@@ -660,6 +667,43 @@ def configurar_pagina() -> None:
                 border-color: var(--mh-accent-alt) !important;
                 background: rgba(36, 107, 71, 0.08) !important;
                 color: var(--mh-accent) !important;
+            }}
+            [data-testid="stSelectbox"] {{
+                margin-top: 0.08rem;
+            }}
+            [data-testid="stSelectbox"] label {{
+                color: var(--mh-muted);
+                font-size: 0.78rem;
+                font-weight: 700;
+                letter-spacing: 0.02em;
+                text-transform: uppercase;
+                margin-bottom: 0.2rem;
+            }}
+            [data-testid="stSelectbox"] [data-baseweb="select"] > div {{
+                min-height: 2.5rem;
+                border-radius: 8px;
+                border: 1px solid var(--mh-border);
+                background: linear-gradient(180deg, #ffffff 0%, var(--mh-panel-soft) 100%);
+                box-shadow: 0 6px 14px rgba(19, 34, 29, 0.04);
+            }}
+            [data-testid="stSelectbox"] [data-baseweb="select"] > div:hover,
+            [data-testid="stSelectbox"] [data-baseweb="select"] > div:focus-within {{
+                border-color: var(--mh-accent);
+                box-shadow: 0 0 0 1px rgba(36, 107, 71, 0.12), 0 6px 14px rgba(19, 34, 29, 0.06);
+            }}
+            [data-testid="stSelectbox"] svg {{
+                color: var(--mh-muted);
+            }}
+            [data-testid="stToggle"] {{
+                margin-top: 0.28rem;
+            }}
+            [data-testid="stToggle"] label {{
+                color: var(--mh-text);
+                font-size: 0.86rem;
+                font-weight: 700;
+            }}
+            [data-testid="stToggle"] button {{
+                border-radius: 999px !important;
             }}
             div.stButton > button:hover,
             div.stDownloadButton > button:hover,
@@ -2786,7 +2830,6 @@ ORDENACOES_CONTAS = {
     "fornecedor": {"label": "Fornecedor", "coluna": "fornecedor_cliente", "tipo": "texto"},
     "valor": {"label": "Valor", "coluna": "valor", "tipo": "numero"},
     "status": {"label": "Status", "coluna": "status", "tipo": "texto"},
-    "documento": {"label": "Documento", "coluna": "documento", "tipo": "texto"},
 }
 
 
@@ -2846,9 +2889,9 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
         return
 
     contas = ordenar_contas_exibidas(contas_exibidas)
-    larguras = [1.2, 2.2, 2.05, 1.1, 0.9, 1.15, 1.2]
+    larguras = [1.2, 2.35, 2.05, 1.15, 0.95, 1.25]
     cabecalho = st.columns(larguras)
-    for col, campo in zip(cabecalho[:6], ORDENACOES_CONTAS.keys()):
+    for col, campo in zip(cabecalho[:5], ORDENACOES_CONTAS.keys()):
         col.button(
             rotulo_ordenacao(campo),
             key=f"ordenar_contas_{campo}",
@@ -2857,7 +2900,7 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
             use_container_width=True,
             type="secondary",
         )
-    cabecalho[6].caption("Ações")
+    cabecalho[5].caption("Ações")
 
     for indice, linha in contas.iterrows():
         nivel = nivel_prazo_conta(linha)
@@ -2868,8 +2911,7 @@ def exibir_contas_com_acoes(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame
         escrever_celula_conta(cols[2], str(linha.get("fornecedor_cliente", "")), nivel)
         escrever_celula_conta(cols[3], formatar_moeda_br(float(linha.get("valor", 0) or 0)), nivel, nowrap=True)
         escrever_celula_conta(cols[4], "vencido" if nivel == "vencida" else str(linha.get("status", "")), nivel, nowrap=True, indicador=indicador)
-        escrever_celula_conta(cols[5], str(linha.get("documento", "")), nivel)
-        acao_cols = cols[6].columns([1, 1, 1, 1], gap="small")
+        acao_cols = cols[5].columns([1, 1, 1, 1], gap="small")
         if acao_cols[0].button("✏️", key=f"contas_acao_editar_{indice}", help="Editar conta", type="secondary", use_container_width=True):
             selecionar_conta_para_edicao(indice)
             st.rerun()
@@ -2969,11 +3011,7 @@ def exibir_contas_em_cards(contas_exibidas: pd.DataFrame, df_base: pd.DataFrame,
             st.markdown(
                 f"""
                 <div class="conta-card">
-                    <div class="conta-card-topo">
-                        <div>
-                            <div class="conta-card-label">Documento</div>
-                            <div class="conta-card-documento">{escape(str(linha.get("documento", "")))}</div>
-                        </div>
+                    <div class="conta-card-topo" style="justify-content:flex-end;">
                         <div class="conta-card-status conta-status-{escape(nivel)}">{escape(str(linha.get("status", "")) if nivel != "vencida" else "vencido")}</div>
                     </div>
                     <div class="conta-card-grid">
@@ -3755,21 +3793,21 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
     contas = filtrar_contas_a_pagar_abertas(df, empresa, somente_pagas=exibir_pagas)
 
-    cabecalho_contas, acao_excel, visibilidade, filtro_pagas = st.columns([3.9, 1.15, 1.35, 1.25], gap="small")
+    cabecalho_contas, acao_excel, visibilidade, filtro_pagas = st.columns([3.4, 1.45, 1.55, 1.25], gap="small")
     with cabecalho_contas:
         st.markdown("### Contas pagas" if exibir_pagas else "### Contas para pagar")
     with acao_excel:
         st.download_button(
-            "?? Excel",
+            "Exportar Excel",
             data=gerar_excel_contas_download(contas, empresa),
             file_name=f"contas_a_pagar_{slug_empresa(empresa)}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="baixar_excel_contas",
-            use_container_width=False,
+            use_container_width=True,
         )
     with visibilidade:
         st.selectbox(
-            "Visualiza??o",
+            "Visualização",
             ["Tabela", "Cards"],
             key="contas_visualizacao_modo",
             label_visibility="visible",
