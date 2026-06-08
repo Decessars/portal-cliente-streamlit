@@ -4347,7 +4347,7 @@ def pagina_contas_a_pagar(df: pd.DataFrame, empresa: str, usuario: str) -> None:
 
 def pagina_faturamento(empresa: str, usuario: str) -> None:
     st.subheader("Faturamento")
-    st.caption("Visualizacao somente leitura. Mostrando os 12 meses mais recentes da base oficial em `data/faturamento/faturamento.sqlite`.")
+    st.caption("Visualizacao somente leitura. Mostrando os 7 meses mais recentes da base oficial em `data/faturamento/faturamento.sqlite`.")
 
     mensal, clientes = carregar_faturamento_planilha()
     mensal_empresa, clientes_empresa = faturamento_empresa(mensal, clientes, empresa)
@@ -4360,7 +4360,7 @@ def pagina_faturamento(empresa: str, usuario: str) -> None:
         mensal_empresa["_ordem"] = mensal_empresa["competencia"].apply(competencia_para_data)
         mensal_empresa = (
             mensal_empresa.sort_values("_ordem", ascending=False, na_position="last")
-            .head(12)
+            .head(7)
             .drop(columns=["_ordem"], errors="ignore")
         )
 
@@ -4378,7 +4378,7 @@ def pagina_faturamento(empresa: str, usuario: str) -> None:
             competencias_exibidas,
             key=lambda item: competencia_para_data(item) or pd.Timestamp.min,
             reverse=True,
-        )[:12]
+        )[:7]
     else:
         competencias_exibidas = []
 
@@ -4403,7 +4403,7 @@ def pagina_faturamento(empresa: str, usuario: str) -> None:
         mensal_empresa["_ordem"] = mensal_empresa["competencia"].apply(competencia_para_data)
         mensal_empresa = (
             mensal_empresa.sort_values("_ordem", ascending=False, na_position="last")
-            .head(12)
+            .head(7)
             .drop(columns=["_ordem"], errors="ignore")
         )
 
@@ -4440,13 +4440,12 @@ def pagina_faturamento(empresa: str, usuario: str) -> None:
 
     renderizar_metricas_faturamento(
         [
-            {"label": "Faturamento 12M", "value": formatar_moeda_br(total_faturamento), "emoji": "📈", "tone": "ok", "detail": "Soma dos 12 meses exibidos"},
-            {"label": "ISS 12M", "value": formatar_moeda_br(total_iss), "emoji": "🧾", "tone": "warning", "detail": "ISS dos 12 meses exibidos"},
+            {"label": "Faturamento 7M", "value": formatar_moeda_br(total_faturamento), "emoji": "📈", "tone": "ok", "detail": "Soma dos 7 meses exibidos"},
+            {"label": "ISS 7M", "value": formatar_moeda_br(total_iss), "emoji": "🧾", "tone": "warning", "detail": "ISS dos 7 meses exibidos"},
             {"label": "Média mensal", "value": formatar_moeda_br(media_mensal), "emoji": "⚖️", "tone": "info", "detail": "Faturamento médio no período"},
             {"label": "Último mês", "value": ultimo_comp, "emoji": "🕒", "tone": "neutral", "detail": ultimo_valor},
             {"label": "Maior mês", "value": melhor_comp, "emoji": "🏆", "tone": "ok", "detail": melhor_valor},
             {"label": "Menor mês", "value": pior_comp, "emoji": "⬇️", "tone": "danger", "detail": pior_valor},
-            {"label": "Meses exibidos", "value": meses_apurados, "emoji": "🗓️", "tone": "neutral", "detail": "Janela dos 12 meses"},
             {"label": "Clientes/CNPJs", "value": clientes_apurados, "emoji": "👥", "tone": "info", "detail": "Participações distintas"},
         ]
     )
