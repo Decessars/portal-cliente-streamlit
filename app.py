@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import math
 import json
 import re
 import sqlite3
@@ -432,6 +433,51 @@ def configurar_pagina() -> None:
                 font-size: 0.76rem;
                 font-weight: 600;
                 line-height: 1.15;
+            }}
+            .pie-card {{
+                display: grid;
+                grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+                gap: 1rem;
+                align-items: center;
+            }}
+            .pie-figure {{
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 260px;
+            }}
+            .pie-legend {{
+                display: grid;
+                gap: 0.55rem;
+            }}
+            .pie-item {{
+                display: flex;
+                gap: 0.65rem;
+                align-items: flex-start;
+                padding: 0.55rem 0.65rem;
+                border: 1px solid var(--mh-border);
+                border-radius: 10px;
+                background: #fff;
+            }}
+            .pie-swatch {{
+                width: 0.9rem;
+                height: 0.9rem;
+                border-radius: 999px;
+                flex: 0 0 auto;
+                margin-top: 0.25rem;
+            }}
+            .pie-item strong {{
+                display: block;
+                font-size: 0.93rem;
+                color: var(--mh-text);
+                line-height: 1.2;
+            }}
+            .pie-item span {{
+                display: block;
+                font-size: 0.8rem;
+                color: var(--mh-muted);
+                line-height: 1.2;
+                margin-top: 0.18rem;
             }}
     .login-logo {{
         display: flex;
@@ -1058,6 +1104,104 @@ def renderizar_metricas_faturamento(cards: list[dict[str, object]]) -> None:
         <div class="metric-grid">
             <div class="metric-row top">{topo_html}</div>
             <div class="metric-row bottom">{base_html}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def renderizar_pizza_faturamento(resumo_clientes: pd.DataFrame) -> None:
+    if resumo_clientes.empty:
+        st.info("Sem dados suficientes para o grafico de pizza.")
+        return
+
+    top = resumo_clientes.copy().head(6)
+    if len(resumo_clientes) > 6:
+        outros = resumo_clientes.iloc[6:]
+        outros_total = float(outros["faturamento"].sum())
+        if outros_total > 0:
+            top = pd.concat(
+                [
+                    top,
+                    pd.DataFrame(
+                        [
+                            {
+                                "cliente": "OUTROS",
+                                "cnpj_cliente": "",
+                                "faturamento": outros_total,
+                                "iss": float(outros["iss"].sum()),
+                                "participacao": float(outros["participacao"].sum()),
+                            }
+                        ]
+                    ),
+                ],
+                ignore_index=True,
+            )
+
+    top = top.loc[top["faturamento"] > 0].copy()
+    if top.empty:
+        st.info("Sem faturamento positivo para montar o grafico de pizza.")
+        return
+
+    total = float(top["faturamento"].sum())
+    top["participacao_calc"] = top["faturamento"].apply(lambda valor: (float(valor) / total * 100) if total else 0.0)
+    palette = ["#246b47", "#d8a93c", "#7c8c5a", "#b96a1f", "#5b8a72", "#d66a5b", "#4f6f91"]
+    cx, cy, r = 120, 120, 92
+    inicio = -90.0
+    setores = []
+    itens_legenda = []
+
+    for indice, linha in top.reset_index(drop=True).iterrows():
+        valor = float(linha["faturamento"])
+        if valor <= 0:
+            continue
+        participacao = valor / total
+        angulo = participacao * 360.0
+        fim = inicio + angulo
+
+        x1 = cx + r * math.cos(math.radians(inicio))
+        y1 = cy + r * math.sin(math.radians(inicio))
+        x2 = cx + r * math.cos(math.radians(fim))
+        y2 = cy + r * math.sin(math.radians(fim))
+        large_arc = 1 if angulo > 180 else 0
+        cor = palette[indice % len(palette)]
+        setores.append(
+            f'<path d="M {cx} {cy} L {x1:.2f} {y1:.2f} A {r} {r} 0 {large_arc} 1 {x2:.2f} {y2:.2f} Z" '
+            f'fill="{cor}" stroke="#ffffff" stroke-width="2" />'
+        )
+
+        cliente = str(linha.get("cliente", "")).strip() or "Sem nome"
+        cnpj = str(linha.get("cnpj_cliente", "")).strip() or "-"
+        itens_legenda.append(
+            f"""
+            <div class="pie-item">
+                <span class="pie-swatch" style="background:{cor}"></span>
+                <div>
+                    <strong>{escape(cliente)}</strong>
+                    <span>{escape(cnpj)} | {formatar_moeda_br(valor)} | {float(linha.get('participacao_calc', participacao * 100)):.1f}%</span>
+                </div>
+            </div>
+            """
+        )
+        inicio = fim
+
+    svg = f"""
+        <svg viewBox="0 0 240 240" width="240" height="240" aria-label="Grafico de pizza de faturamento">
+            <circle cx="{cx}" cy="{cy}" r="{r}" fill="#f8faf9" stroke="#d4ddd9" stroke-width="1.5" />
+            {''.join(setores)}
+            <circle cx="{cx}" cy="{cy}" r="34" fill="#ffffff" />
+            <text x="{cx}" y="{cy - 4}" text-anchor="middle" font-size="14" font-weight="700" fill="#246b47">Total</text>
+            <text x="{cx}" y="{cy + 16}" text-anchor="middle" font-size="15" font-weight="700" fill="#13221d">{formatar_moeda_br(total)}</text>
+        </svg>
+    """
+
+    st.markdown(
+        f"""
+        <div class="pie-card">
+            <div class="pie-figure">{svg}</div>
+            <div class="pie-legend">
+                {''.join(itens_legenda)}
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -4348,6 +4492,10 @@ def pagina_faturamento(empresa: str, usuario: str) -> None:
         if clientes_empresa.empty:
             st.info("Sem registros por cliente/CNPJ para esta empresa.")
         else:
+            with st.container(border=True):
+                st.markdown("#### Participacao por cliente/CNPJ")
+                renderizar_pizza_faturamento(resumo_clientes)
+
             clientes_matriz = clientes_empresa.copy()
             competencias = [competencia for competencia in competencias_exibidas if competencia in clientes_matriz["competencia"].astype(str).unique()]
             tabela = clientes_matriz.pivot_table(
