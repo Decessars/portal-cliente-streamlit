@@ -4328,7 +4328,8 @@ def pagina_faturamento(empresa: str, usuario: str) -> None:
                     "observacao": "Observacao",
                 }
             )
-            st.dataframe(mensal_exibicao, use_container_width=True, hide_index=True)
+            altura_mensal = 36 * (len(mensal_exibicao) + 1) + 24
+            st.dataframe(mensal_exibicao, use_container_width=True, hide_index=True, height=altura_mensal)
 
     with abas[1]:
         if clientes_empresa.empty:
