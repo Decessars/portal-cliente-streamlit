@@ -15,6 +15,7 @@ from io import BytesIO
 from pathlib import Path
 from textwrap import dedent
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -1198,6 +1199,42 @@ def renderizar_pizza_faturamento(resumo_clientes: pd.DataFrame) -> None:
     ).strip()
 
     st.markdown(bloco_html, unsafe_allow_html=True)
+
+
+def renderizar_grafico_linha_faturamento(df: pd.DataFrame) -> None:
+    if df.empty:
+        st.info("Sem dados suficientes para o grafico de linha.")
+        return
+
+    grafico = df.copy()
+    grafico["_ordem"] = grafico["competencia"].apply(competencia_para_data)
+    grafico = grafico.sort_values("_ordem", ascending=True, na_position="last").copy()
+    grafico["competencia_label"] = grafico["competencia"].apply(formatar_competencia_faturamento)
+    grafico["faturamento_plot"] = pd.to_numeric(grafico["faturamento"], errors="coerce").fillna(0).round(0).astype(int)
+    grafico["faturamento_label"] = grafico["faturamento_plot"].apply(lambda valor: f"R$ {format(int(valor), ',').replace(',', '.')}")
+
+    chart = (
+        alt.Chart(grafico)
+        .mark_line(color="#246b47", strokeWidth=3, point=alt.OverlayMarkDef(filled=True, size=70))
+        .encode(
+            x=alt.X("competencia_label:N", title="Competencia", sort=None),
+            y=alt.Y(
+                "faturamento_plot:Q",
+                title="Faturamento (R$)",
+                axis=alt.Axis(
+                    format=",.0f",
+                    labelExpr="replace(format(datum.value, ',.0f'), ',', '.')",
+                ),
+            ),
+            tooltip=[
+                alt.Tooltip("competencia_label:N", title="Competencia"),
+                alt.Tooltip("faturamento_label:N", title="Faturamento"),
+            ],
+        )
+        .properties(height=280)
+    )
+
+    st.altair_chart(chart, width="stretch")
 
 
 def criar_config_demo() -> dict:
@@ -4445,17 +4482,9 @@ def pagina_faturamento(empresa: str, usuario: str) -> None:
     )
 
     if not mensal_empresa.empty:
-        grafico_mensal = mensal_empresa.copy()
-        grafico_mensal["_ordem"] = grafico_mensal["competencia"].apply(competencia_para_data)
-        grafico_mensal = grafico_mensal.sort_values("_ordem", ascending=True, na_position="last")
-        grafico_mensal["competencia_label"] = grafico_mensal["competencia"].apply(formatar_competencia_faturamento)
         with st.container(border=True):
             st.markdown("#### Evolucao mensal")
-            st.line_chart(
-                grafico_mensal.set_index("competencia_label")[["faturamento"]],
-                use_container_width=True,
-                height=280,
-            )
+            renderizar_grafico_linha_faturamento(mensal_empresa)
 
     abas = st.tabs(["Mensal", "Por cliente/CNPJ"])
     with abas[0]:
