@@ -4579,7 +4579,6 @@ def main() -> None:
         status_geral, status_tipo = status_geral_contas(contas)
 
     modulo_atual = st.session_state.get("modulo_atual", "contas_a_pagar")
-    renderizar_menu_direito(config)
     if modulo_atual not in {"contas_a_pagar", "contas_a_receber"}:
         mostrar_cabecalho(empresa, status_geral, status_tipo)
     if modulo_atual == "contas_a_pagar":
